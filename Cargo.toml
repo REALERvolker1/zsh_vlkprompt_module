@@ -1,13 +1,38 @@
-[package]
-name = "zshmodule2"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+package.edition = "2024"
+members = [".", "vendored/zsh-module-rs/zsh-sys"]
 
-[lib]
-crate-type = ["cdylib"]
-
-[dependencies]
+[workspace.dependencies]
 bitflags = { version = "2.11.0", features = ["bytemuck"] }
 bytemuck = { version = "1.25.0", features = ["latest_stable_rust"] }
 embedded-io = "0.7.1"
 libc = { version = "0.2.184", default-features = false }
+bindgen = "0.72.1"
+zsh-sys = { path = "vendored/zsh-module-rs/zsh-sys" }
+
+[package]
+name = "zshmodule2"
+version = "0.1.0"
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
+incremental = false
+
+[dependencies]
+bitflags.workspace = true
+bytemuck.workspace = true
+embedded-io.workspace = true
+libc.workspace = true
+zsh-sys.workspace = true
