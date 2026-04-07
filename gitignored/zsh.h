@@ -1,1 +1,0 @@
-/home/vlk/src/zsh/Src/zsh.h
