@@ -1,0 +1,13 @@
+[package]
+name = "zshmodule2"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bitflags = { version = "2.11.0", features = ["bytemuck"] }
+bytemuck = { version = "1.25.0", features = ["latest_stable_rust"] }
+embedded-io = "0.7.1"
+libc = { version = "0.2.184", default-features = false }
