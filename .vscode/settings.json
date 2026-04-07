@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.restartServerOnConfigChange": true,
+    "rust-analyzer.diagnostics.enable": false,
+    "rust-analyzer.trace.server": "messages"
+}

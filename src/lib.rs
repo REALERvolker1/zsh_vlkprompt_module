@@ -178,10 +178,8 @@ extern "C" fn bin_example(
 
         libc::printf(b"Array Parameter:\0".as_ptr() as *const c_char);
         if !ARR_PARAM.is_null() {
-            let mut current = ARR_PARAM;
-            while !(*current).is_null() {
-                libc::printf(b" %s\0".as_ptr() as *const c_char, *current);
-                current = current.offset(1);
+            for i in 0..2 {
+                libc::printf(b" %s\0".as_ptr() as *const c_char, *ARR_PARAM.offset(i));
             }
         }
         libc::printf(b"\n\0".as_ptr() as *const c_char);
@@ -198,9 +196,9 @@ extern "C" fn bin_example(
         };
 
         if !ARR_PARAM.is_null() {
-            zsh_sys::freearray(ARR_PARAM);
+            // zsh_sys::freearray(ARR_PARAM);
         }
-        ARR_PARAM = zsh_sys::zarrdup(args);
+        // ARR_PARAM = zsh_sys::zarrdup(args);
     }
 
     0
@@ -367,7 +365,7 @@ pub extern "C" fn boot_(m: zsh_sys::Module) -> c_int {
         STR_PARAM = libc::strdup(b"example\0".as_ptr() as *const c_char);
 
         if !ARR_PARAM.is_null() {
-            zsh_sys::freearray(ARR_PARAM);
+            // zsh_sys::freearray(ARR_PARAM);
         }
 
         // Create array with example values
@@ -376,10 +374,9 @@ pub extern "C" fn boot_(m: zsh_sys::Module) -> c_int {
         arr.push(libc::strdup(b"array\0".as_ptr() as *const c_char));
         arr.push(ptr::null_mut()); // Null terminator
 
-        ARR_PARAM = arr.as_mut_ptr();
+        let arrbox = Box::leak(arr.into_boxed_slice());
 
-        // the LLM is a bozo
-        core::mem::forget(arr);
+        ARR_PARAM = arrbox.as_mut_ptr();
 
         // Add wrapper (simplified)
         // In a real implementation, this would add the wrapper to the module
@@ -400,8 +397,8 @@ pub extern "C" fn cleanup_(m: zsh_sys::Module) -> c_int {
         }
 
         if !ARR_PARAM.is_null() {
-            zsh_sys::freearray(ARR_PARAM);
-            ARR_PARAM = ptr::null_mut();
+            // zsh_sys::freearray(ARR_PARAM);
+            // ARR_PARAM = ptr::null_mut();
         }
 
         zsh_sys::setfeatureenables(m, ptr::null_mut(), ptr::null_mut());

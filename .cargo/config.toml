@@ -1,0 +1,24 @@
+[target."cfg(unix)"]
+
+rustflags = [
+    "-Cllvm-args=--inline-threshold=87",
+    # "-Ctarget-cpu=native",
+
+    "-Zunstable-options",
+    # Makes the debug builds print <redacted> 0 0 on panic
+    # "-Zlocation-detail=none",
+    # "-Zfmt-debug=none",
+    # From bevy https://bevy.org/learn/quick-start/getting-started/setup
+    # "-Zshare-generics=y",
+
+    # Disable sane Undefined Behavior defaults. this will never affect me.
+    "-Ztrap-unreachable=no",
+    # enable this if code size begins to be an issue
+    # "-Cno-vectorize-loops",
+]
+
+[env]
+DEFMT_LOG = "trace"
+
+[unstable]
+build-std = ["core", "alloc", "panic_abort"]
