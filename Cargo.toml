@@ -10,6 +10,7 @@ embedded-io = "0.7.1"
 libc = { version = "0.2.184", default-features = false }
 bindgen = "0.72.1"
 zsh-sys = { path = "vendored/zsh-module-rs/zsh-sys" }
+memchr = "2.8.0"
 
 [package]
 name = "zshmodule2"
@@ -36,3 +37,6 @@ bytemuck.workspace = true
 embedded-io.workspace = true
 libc.workspace = true
 zsh-sys.workspace = true
+
+[build-dependencies]
+

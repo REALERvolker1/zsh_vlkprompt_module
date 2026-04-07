@@ -254,6 +254,9 @@ name = "zsh-sys"
 version = "0.1.1"
 dependencies = [
  "bindgen",
+ "bytemuck",
+ "libc",
+ "memchr",
 ]
 
 [[package]]

@@ -127,7 +127,7 @@ fn c_str_to_rust_str(s: *const c_char) -> Option<String> {
 extern "C" fn bin_example(
     nam: *const c_char,
     args: *mut *mut c_char,
-    ops: zsh_sys::Options,
+    ops: *mut zsh_sys::options,
     func: c_int,
 ) -> c_int {
     // Print options
@@ -294,7 +294,11 @@ extern "C" fn math_length(name: *const c_char, arg: *const c_char, id: c_int) ->
 }
 
 // Function wrapper for global dot behavior
-extern "C" fn ex_wrapper(prog: *mut c_void, w: zsh_sys::FuncWrap, name: *const c_char) -> c_int {
+extern "C" fn ex_wrapper(
+    prog: *mut c_void,
+    w: *mut zsh_sys::funcwrap,
+    name: *const c_char,
+) -> c_int {
     unsafe {
         if name.is_null() {
             return 1;
@@ -326,7 +330,7 @@ extern "C" fn output64(val: c_long) -> *const c_char {
 
 // Module setup
 #[unsafe(no_mangle)]
-pub extern "C" fn setup_(m: zsh_sys::Module) -> c_int {
+pub extern "C" fn setup_(m: *mut zsh_sys::module) -> c_int {
     unsafe {
         libc::printf(b"The example module has now been set up.\n\0".as_ptr() as *const c_char);
         libc::fflush(ptr::null_mut());
@@ -336,7 +340,7 @@ pub extern "C" fn setup_(m: zsh_sys::Module) -> c_int {
 
 // Module features function
 #[unsafe(no_mangle)]
-pub extern "C" fn features_(m: zsh_sys::Module, features: *mut *mut *mut c_char) -> c_int {
+pub extern "C" fn features_(m: *mut zsh_sys::module, features: *mut *mut *mut c_char) -> c_int {
     unsafe {
         // This is a simplified implementation
         *features = ptr::null_mut();
@@ -346,7 +350,7 @@ pub extern "C" fn features_(m: zsh_sys::Module, features: *mut *mut *mut c_char)
 
 // Module enables function
 #[unsafe(no_mangle)]
-pub extern "C" fn enables_(m: zsh_sys::Module, enables: *mut *mut c_int) -> c_int {
+pub extern "C" fn enables_(m: *mut zsh_sys::module, enables: *mut *mut c_int) -> c_int {
     unsafe {
         *enables = ptr::null_mut();
     }
@@ -355,7 +359,7 @@ pub extern "C" fn enables_(m: zsh_sys::Module, enables: *mut *mut c_int) -> c_in
 
 // Module boot function
 #[unsafe(no_mangle)]
-pub extern "C" fn boot_(m: zsh_sys::Module) -> c_int {
+pub extern "C" fn boot_(m: *mut zsh_sys::module) -> c_int {
     unsafe {
         INT_PARAM = 42;
 
@@ -385,7 +389,7 @@ pub extern "C" fn boot_(m: zsh_sys::Module) -> c_int {
 }
 // Module cleanup function
 #[unsafe(no_mangle)]
-pub extern "C" fn cleanup_(m: zsh_sys::Module) -> c_int {
+pub extern "C" fn cleanup_(m: *mut zsh_sys::module) -> c_int {
     unsafe {
         // Delete wrapper (simplified)
         // In a real implementation, this would remove the wrapper from the module
@@ -408,7 +412,7 @@ pub extern "C" fn cleanup_(m: zsh_sys::Module) -> c_int {
 
 // Module finish function
 #[unsafe(no_mangle)]
-pub extern "C" fn finish_(m: zsh_sys::Module) -> c_int {
+pub extern "C" fn finish_(m: *mut zsh_sys::module) -> c_int {
     unsafe {
         libc::printf(
             b"Thank you for using the example module.  Have a nice day.\n\0".as_ptr()
