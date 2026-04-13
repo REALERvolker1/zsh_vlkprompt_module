@@ -13,7 +13,7 @@ zsh-sys = { path = "vendored/zsh-module-rs/zsh-sys" }
 memchr = "2.8.0"
 
 [package]
-name = "zshmodule2"
+name = "zsh_autocomplete_rs"
 version = "0.1.0"
 edition.workspace = true
 
@@ -35,7 +35,10 @@ incremental = false
 bitflags.workspace = true
 bytemuck.workspace = true
 embedded-io.workspace = true
+heapless = "0.9.2"
 libc.workspace = true
+owo-colors = "4.3.0"
+rustix = { version = "1.1.4", default-features = false, features = ["fs", "use-libc"] }
 zsh-sys.workspace = true
 
 [build-dependencies]
