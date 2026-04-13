@@ -15,16 +15,19 @@ fn write_all(fd: BorrowedFd<'_>, buf: &[u8]) -> io::Result<usize> {
     }
 }
 
-#[inline]
-unsafe fn write_all_to_fd(fd: c_int, buf: &[u8]) -> Result<usize, io::Errno> {
-    write_all(unsafe { BorrowedFd::borrow_raw(fd) }, buf)
-}
+const STDOUT_FD: BorrowedFd<'static> = unsafe { BorrowedFd::borrow_raw(STDOUT_FILENO) };
+const STDERR_FD: BorrowedFd<'static> = unsafe { BorrowedFd::borrow_raw(STDERR_FILENO) };
 
 #[inline]
 pub fn stdout_write_blocking(buf: &[u8]) -> Result<usize, io::Errno> {
-    unsafe { write_all_to_fd(STDOUT_FILENO, buf) }
+    write_all(STDOUT_FD, buf)
 }
 #[inline]
 pub fn stderr_write_blocking(buf: &[u8]) -> Result<usize, io::Errno> {
-    unsafe { write_all_to_fd(STDERR_FILENO, buf) }
+    write_all(STDERR_FD, buf)
+}
+
+#[inline]
+pub fn stdout_println(s: &str) {
+    _ = stdout_write_blocking(s.as_bytes()).and_then(|_| rustix::io::write(STDOUT_FD, b"\n"));
 }
