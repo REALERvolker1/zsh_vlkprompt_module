@@ -1,2 +1,3 @@
 /target
 vendored/zsh-module-rs/zsh-sys/src/bindings.rs
+gitignored/
