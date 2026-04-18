@@ -3,6 +3,7 @@
 pub mod printing;
 
 use crate::printing::{stderr_write_blocking, stdout_println, stdout_write_blocking};
+use ::core::ffi::CStr;
 use ::heapless::{String, Vec};
 use bytemuck::{Pod, TransparentWrapper, Zeroable};
 use core::ffi::{c_char, c_int, c_long, c_void};
@@ -19,38 +20,33 @@ fn p(info: &core::panic::PanicInfo<'_>) -> ! {
     unsafe { libc::exit(libc::EXIT_FAILURE) };
 }
 
+/// Initial memory allocation and basic setup. Called before dependencies are checked.
 #[unsafe(no_mangle)]
 pub extern "C" fn setup_(module: zsh_sys::Module) -> c_int {
-    // stdout_println("setup_");
     0
 }
-
+/// Final initialization. Features are registered here (e.g., [`addbuiltins`](zsh_sys::addbuiltins)).
 #[unsafe(no_mangle)]
 pub extern "C" fn boot_(module: zsh_sys::Module) -> c_int {
-    // stdout_println("boot_");
     0
 }
-
+/// Prepares for unloading. Unregisters features.
 #[unsafe(no_mangle)]
 pub extern "C" fn cleanup_(module: zsh_sys::Module) -> c_int {
-    // stdout_println("cleanup_");
     0
 }
-
+/// Final cleanup before memory deallocation.
 #[unsafe(no_mangle)]
 pub extern "C" fn finish_(module: zsh_sys::Module) -> c_int {
-    // stdout_println("finish_");
     0
 }
-
+/// Returns a list of strings identifying features (builtins, params, etc.) provided.
 #[unsafe(no_mangle)]
 pub extern "C" fn features_(module: zsh_sys::Module, features: *mut *mut *mut c_char) -> c_int {
-    // stdout_println("features_");
     0
 }
-
+/// Allows the shell to enable or disable specific features within the module.
 #[unsafe(no_mangle)]
 pub extern "C" fn enables_(module: zsh_sys::Module, enables: *mut *mut c_int) -> c_int {
-    // stdout_println("enables_");
     0
 }
