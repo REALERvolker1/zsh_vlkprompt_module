@@ -27,7 +27,6 @@ may read files in it to learn more about zsh modules, but you may not import, us
 
 ## DO NOT USE MALLOC UNDER ANY CIRCUMSTANCES.
 
-- **FORBIDDEN FUNCTIONS:** malloc, realloc, reallocarray, calloc, zalloc, zstrdup, zshcalloc, zrealloc, zreallocarray, etc.
 - **DO NOT HIDE ALLOCATION INSIDE OF FUNCTIONS**
 - **DO NOT ABUSE HEAP-ALLOCATED TYPES** (Ex. Hiding unrelated data inside of hash tables, doing anything with linkedlists, etc.)
 - Do not use `core::fmt`, use the dedicated printing functions in `printing.rs`

@@ -4,13 +4,24 @@ package.edition = "2024"
 members = [".", "vendored/zsh-module-rs/zsh-sys"]
 
 [workspace.dependencies]
-bitflags = { version = "2.11.0", features = ["bytemuck"] }
-bytemuck = { version = "1.25.0", features = ["latest_stable_rust"] }
-embedded-io = "0.7.1"
-libc = { version = "0.2.184", default-features = false }
 bindgen = "0.72.1"
-zsh-sys = { path = "vendored/zsh-module-rs/zsh-sys" }
+bitflags = { version = "2.11.1", features = ["bytemuck"] }
+bytemuck = { version = "1.25.0", features = ["latest_stable_rust"] }
+const_format = { version = "0.2.36", features = ["all"] }
+embedded-io = "0.7.1"
+heapless = "0.9.2"
+konst = { version = "0.4.3", features = ["rust_latest_stable"] }
+libc = { version = "0.2.185", default-features = false }
 memchr = "2.8.0"
+num-traits = { version = "0.2.19", default-features = false }
+owo-colors = "4.3.0"
+regex = { version = "1.12.3", default-features = false, features = ["unicode"] }
+rustix = { version = "1.1.4", default-features = false, features = [
+    "fs",
+    "use-libc",
+] }
+zsh-sys = { path = "vendored/zsh-module-rs/zsh-sys" }
+
 
 [package]
 name = "zsh_autocomplete_rs"
@@ -34,12 +45,15 @@ incremental = false
 [dependencies]
 bitflags.workspace = true
 bytemuck.workspace = true
+const_format.workspace = true
 embedded-io.workspace = true
-heapless = "0.9.2"
+heapless.workspace = true
+konst.workspace = true
 libc.workspace = true
-owo-colors = "4.3.0"
-rustix = { version = "1.1.4", default-features = false, features = ["fs", "use-libc"] }
+num-traits.workspace = true
+owo-colors.workspace = true
+rustix.workspace = true
+
 zsh-sys.workspace = true
 
 [build-dependencies]
-

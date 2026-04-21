@@ -24,7 +24,9 @@ else
     print -l 'Now running the command:' "zmodload ${targets[1]}" ''
     zmodload "${targets[1]}"
 
-    print -l '[0m' 'Exiting in 3 seconds...'
+    example hello world
+
+    print -l '[0m' 'Exiting in 1 second...'
     sleep 3
     exit 0
 fi

@@ -18,4 +18,5 @@ cargo build
 _check_for -d "$ZDOTDIR"
 _check_for -r "$ZDOTDIR/.zshrc"
 
+# gdb zsh
 zsh
