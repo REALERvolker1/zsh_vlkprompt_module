@@ -1,4 +1,4 @@
-#![allow(nonstandard_style)]
+#![allow(nonstandard_style, static_mut_refs)]
 
 use ::core::{
     ffi::{CStr, c_char, c_int, c_void},
@@ -16,16 +16,16 @@ use crate::{
     PM_EXPORTED, PM_FFLOAT, PM_HASHED, PM_HIDE, PM_HIDEVAL, PM_INTEGER, PM_LOCAL, PM_NAMEREF,
     PM_READONLY, PM_RESTRICTED, PM_SCALAR, PM_SPECIAL, PM_TIED, PM_UNSET, QT, REDIR, SIGCOUNT,
     ScanTabFunc, StrMathFunc, VALFLAG_EMPTY, VALFLAG_INV, VALFLAG_REFSLICE, VALFLAG_SUBST,
-    VSIGCOUNT, WrapFunc, asgment, builtin, conddef, convchar_t, createparam, curhist, dosetopt,
-    emulation, eprog, export_param, features, funcwrap, getarrvalue, getintvalue, getnumvalue,
-    getstrvalue, gsu_array, gsu_float, gsu_hash, gsu_integer, gsu_scalar, hashnode, hashtable,
-    heap, hist_ring, hookdef, intrap, lextok, linklist, linknode, locallevel, matheval, mathfunc,
-    mb_charinit, mb_metacharlenconv, mb_metastrlenend, mb_niceformat, mnumber,
-    mnumber__bindgen_ty_1, new_heaps, old_heaps, optlookup, optlookupc, opts, param, paramdef,
-    queue_front, queue_rear, queueing_enabled, resetparam, setstrvalue, sig_msg, sigchld_mask,
-    signal_block, signal_mask, signal_mask_queue, signal_queue, signal_setmask, signal_unblock,
-    stophist, switch_heaps, tclen, trapisfunc, traplocallevel, unsetparam_pm, value, zero_mnumber,
-    zhandler, zlong, zshhooks,
+    VSIGCOUNT, WrapFunc, addparamdef, asgment, builtin, conddef, convchar_t, createparam, curhist,
+    dosetopt, emulation, eprog, export_param, features, funcwrap, getarrvalue, getintvalue,
+    getiparam, getnumvalue, getsparam, getsparam_u, getstrvalue, gsu_array, gsu_float, gsu_hash,
+    gsu_integer, gsu_scalar, hashnode, hashtable, heap, hist_ring, hookdef, intrap, lextok,
+    linklist, linknode, locallevel, matheval, mathfunc, mb_charinit, mb_metacharlenconv,
+    mb_metastrlenend, mb_niceformat, mnumber, mnumber__bindgen_ty_1, new_heaps, old_heaps,
+    optlookup, optlookupc, opts, param, paramdef, queue_front, queue_rear, queueing_enabled,
+    resetparam, setnumvalue, setstrvalue, sig_msg, sigchld_mask, signal_block, signal_mask,
+    signal_mask_queue, signal_queue, signal_setmask, signal_unblock, stophist, switch_heaps, tclen,
+    trapisfunc, traplocallevel, unsetparam_pm, value, zero_mnumber, zhandler, zlong, zshhooks,
 };
 
 impl asgment {
@@ -43,7 +43,7 @@ impl asgment {
     }
 }
 
-pub fn firsthist() -> i64 {
+pub unsafe fn firsthist() -> i64 {
     let r = unsafe { hist_ring.as_mut() };
     let Some(ring) = r else {
         return unsafe { curhist };
@@ -55,7 +55,7 @@ pub fn firsthist() -> i64 {
 /// #define sigmsg(sig) ((sig) <= SIGCOUNT ? sig_msg[sig] : "unknown signal")
 /// ```
 #[inline]
-pub fn sigmsg(sig: c_int) -> &'static CStr {
+pub unsafe fn sigmsg(sig: c_int) -> &'static CStr {
     if sig <= SIGCOUNT {
         return c"unknown signal";
     }
@@ -116,19 +116,19 @@ impl funcwrap {
 }
 
 impl lextok {
-    #[inline]
+    #[inline(always)]
     pub const fn as_int(self) -> c_int {
         self as _
     }
 }
 impl ASG {
-    #[inline]
+    #[inline(always)]
     pub const fn as_int(self) -> c_int {
         self as _
     }
 }
 impl REDIR {
-    #[inline]
+    #[inline(always)]
     pub const fn as_int(self) -> c_int {
         self as _
     }
@@ -159,16 +159,19 @@ impl REDIR {
 }
 impl mnumber {
     /// mnumber is integer
+    #[inline]
     pub const fn is_integer(self) -> bool {
         // self.type_ & MN_INTEGER != 0
         self.type_ == MN_INTEGER
     }
     /// mnumber is floating point
+    #[inline]
     pub const fn is_float(self) -> bool {
         // self.type_ & MN_FLOAT != 0
         self.type_ == MN_FLOAT
     }
     /// mnumber not yet retrieved
+    #[inline]
     pub const fn is_unset(self) -> bool {
         self.type_ & MN_UNSET != 0
     }
@@ -220,8 +223,24 @@ impl mnumber {
         }
     }
     #[inline(always)]
-    pub fn matheval(s: *mut c_char) -> Self {
+    pub unsafe fn matheval(s: *mut c_char) -> Self {
         unsafe { matheval(s) }
+    }
+    pub const fn const_add(self, rhs: Self) -> Self {
+        match (self.get_integer(), rhs.get_integer()) {
+            (Ok(a), Ok(b)) => Self::new_integer(a + b),
+            (Err(a), Err(b)) => Self::new_float(a + b),
+            (Ok(a), Err(b)) => Self::new_float(a as f64 + b),
+            (Err(a), Ok(b)) => Self::new_float(a + b as f64),
+        }
+    }
+    pub const fn const_eq(self, other: Self) -> bool {
+        match (self.get_integer(), other.get_integer()) {
+            (Ok(a), Ok(b)) => a == b,
+            (Err(a), Err(b)) => a == b,
+            (Ok(a), Err(b)) => a == b as i64,
+            (Err(a), Ok(b)) => a as i64 == b,
+        }
     }
 }
 impl num_traits::Zero for mnumber {
@@ -248,55 +267,46 @@ impl num_traits::Zero for mnumber {
 }
 impl Add for mnumber {
     type Output = Self;
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
-        match (self.get_integer(), rhs.get_integer()) {
-            (Ok(a), Ok(b)) => Self::new_integer(a.add(b)),
-            (Err(a), Err(b)) => Self::new_float(a.add(b)),
-            (Ok(a), Err(b)) => Self::new_float((a as f64).add(b)),
-            (Err(a), Ok(b)) => Self::new_float(a.add(b as f64)),
-        }
+        self.const_add(rhs)
     }
 }
 impl PartialEq for mnumber {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
-        match (self.get_integer(), other.get_integer()) {
-            (Ok(a), Ok(b)) => a.eq(&b),
-            (Err(a), Err(b)) => a.eq(&b),
-            (Ok(a), Err(b)) => a.eq(&(b as i64)),
-            (Err(a), Ok(b)) => (a as i64).eq(&b),
-        }
+        self.const_eq(*other)
     }
 }
 impl From<zlong> for mnumber {
+    #[inline]
     fn from(value: zlong) -> Self {
-        Self {
-            u: mnumber__bindgen_ty_1 { l: value },
-            type_: MN_INTEGER,
-        }
+        Self::new_integer(value)
     }
 }
 impl From<f64> for mnumber {
+    #[inline]
     fn from(value: f64) -> Self {
-        Self {
-            u: mnumber__bindgen_ty_1 { d: value },
-            type_: MN_FLOAT,
-        }
+        Self::new_float(value)
     }
 }
 impl TryFrom<mnumber> for zlong {
     type Error = f64;
+    #[inline]
     fn try_from(value: mnumber) -> Result<Self, Self::Error> {
         value.get_integer()
     }
 }
 impl TryFrom<mnumber> for f64 {
     type Error = zlong;
+    #[inline]
     fn try_from(value: mnumber) -> Result<Self, Self::Error> {
         value.get_float()
     }
 }
 
 impl mathfunc {
+    #[inline]
     pub const fn NUMMATHFUNC(
         name: *mut c_char,
         func: NumMathFunc,
@@ -316,6 +326,7 @@ impl mathfunc {
             funcid: id,
         }
     }
+    #[inline]
     pub const fn STRMATHFUNC(name: *mut c_char, func: StrMathFunc, id: c_int) -> Self {
         Self {
             next: null_mut(),
@@ -331,7 +342,7 @@ impl mathfunc {
     }
 }
 impl QT {
-    #[inline]
+    #[inline(always)]
     pub const fn as_int(self) -> c_int {
         self as _
     }
@@ -557,6 +568,12 @@ impl paramdef {
     pub unsafe fn name_matches(&self, other: &CStr) -> bool {
         unsafe { strcmp(self.name, other.as_ptr()) == 0 }
     }
+
+    /// addparamdef
+    #[inline(always)]
+    pub unsafe fn add(&mut self) -> c_int {
+        unsafe { addparamdef(&raw mut *self) }
+    }
 }
 
 /// Extract the parameter type from flags.
@@ -694,7 +711,9 @@ impl param {
     /// # Safety
     /// Caller must ensure this is a scalar parameter and value is valid.
     #[inline]
-    pub unsafe fn set_str(&mut self, val: *mut c_char) {
+    pub unsafe fn set_scalar(&mut self, val: *mut c_char) {
+        debug_assert!(self.is_scalar());
+
         unsafe {
             // SAFETY: Caller guarantees scalar type and valid value
             let gsu_ptr = *self.gsu.s;
@@ -709,6 +728,7 @@ impl param {
     /// Caller must ensure this is an integer parameter.
     #[inline]
     pub unsafe fn get_int(&self) -> zlong {
+        debug_assert!(self.is_integer());
         unsafe {
             // SAFETY: Caller guarantees integer type
             let gsu_ptr = *self.gsu.i;
@@ -725,6 +745,7 @@ impl param {
     /// Caller must ensure this is an integer parameter.
     #[inline]
     pub unsafe fn set_int(&mut self, val: zlong) {
+        debug_assert!(self.is_integer());
         unsafe {
             // SAFETY: Caller guarantees integer type
             let gsu_ptr = *self.gsu.i;
@@ -739,6 +760,7 @@ impl param {
     /// Caller must ensure this is a float parameter.
     #[inline]
     pub unsafe fn get_float(&self) -> f64 {
+        debug_assert!(self.is_float());
         unsafe {
             // SAFETY: Caller guarantees float type
             let gsu_ptr = *self.gsu.f;
@@ -755,6 +777,7 @@ impl param {
     /// Caller must ensure this is a float parameter.
     #[inline]
     pub unsafe fn set_float(&mut self, val: f64) {
+        debug_assert!(self.is_float());
         unsafe {
             // SAFETY: Caller guarantees float type
             let gsu_ptr = *self.gsu.f;
@@ -769,6 +792,7 @@ impl param {
     /// Caller must ensure this is an array parameter.
     #[inline]
     pub unsafe fn get_arr(&self) -> *mut *mut c_char {
+        debug_assert!(self.is_array());
         unsafe {
             // SAFETY: Caller guarantees array type
             let gsu_ptr = *self.gsu.a;
@@ -785,6 +809,7 @@ impl param {
     /// Caller must ensure this is an array parameter.
     #[inline]
     pub unsafe fn set_arr(&mut self, val: *mut *mut c_char) {
+        debug_assert!(self.is_array());
         unsafe {
             // SAFETY: Caller guarantees array type
             let gsu_ptr = *self.gsu.a;
@@ -799,6 +824,7 @@ impl param {
     /// Caller must ensure this is a hashed (association) parameter.
     #[inline]
     pub unsafe fn get_hash(&self) -> *mut hashtable {
+        debug_assert!(self.is_hashed());
         unsafe {
             // SAFETY: Caller guarantees hashed type
             let gsu_ptr = *self.gsu.h;
@@ -815,6 +841,7 @@ impl param {
     /// Caller must ensure this is a hashed (association) parameter.
     #[inline]
     pub unsafe fn set_hash(&mut self, val: *mut hashtable) {
+        debug_assert!(self.is_hashed());
         unsafe {
             // SAFETY: Caller guarantees hashed type
             let gsu_ptr = *self.gsu.h;
@@ -824,10 +851,10 @@ impl param {
             }
         }
     }
-    /// Get the parameter name.
+    /// Get the parameter name. This may or may not be a zstr or zhstr
     #[inline]
-    pub const fn name(&self) -> &CStr {
-        unsafe { CStr::from_ptr(self.node.nam) }
+    pub const fn name(&self) -> *mut c_char {
+        self.node.nam
     }
     /// Get the parameter flags.
     #[inline]
@@ -894,31 +921,57 @@ impl value {
     }
     #[inline]
     pub unsafe fn assign_num_value(&mut self, num: impl Into<mnumber>) {
-        let n = num.into();
+        let val = num.into();
+        unsafe { setnumvalue(&raw mut *self, val) }
+    }
+}
+
+/// A parameter type that we can lookup in zsh
+pub trait ParamType: Sized {
+    unsafe fn get_param_or_default(param: *mut c_char) -> Self;
+    unsafe fn cast_value_or_default(value: &mut value) -> Self;
+}
+impl ParamType for zlong {
+    unsafe fn cast_value_or_default(value: &mut value) -> Self {
+        unsafe { value.to_long() }
+    }
+    unsafe fn get_param_or_default(param: *mut c_char) -> Self {
+        unsafe { getiparam(param) }
+    }
+}
+impl ParamType for *mut c_char {
+    unsafe fn cast_value_or_default(value: &mut value) -> Self {
+        unsafe { value.to_zheap_str() }
+    }
+    unsafe fn get_param_or_default(param: *mut c_char) -> Self {
+        // unsafe { getsparam_u(param) }
+        unsafe { getsparam(param) }
     }
 }
 
 /// Test for a shell emulation.  Use this rather than emulation directly.
+#[inline]
 pub fn EMULATION(X: c_int) -> c_int {
     let emu = unsafe { emulation };
     emu & X
 }
 const EMULATE_FIELDS: c_int = EMULATE_CSH | EMULATE_KSH | EMULATE_SH | EMULATE_ZSH;
 /// Return only base shell emulation field.
+#[inline(always)]
 pub fn SHELL_EMULATION() -> c_int {
     EMULATION(EMULATE_FIELDS)
 }
 
 impl OPT {
-    #[inline]
+    #[inline(always)]
     pub const fn as_int(self) -> c_int {
         self as _
     }
-    #[inline]
+    #[inline(always)]
     pub const fn as_optindex(self) -> OptIndex {
         self as _
     }
-    #[inline]
+    #[inline(always)]
     const fn as_index(self) -> usize {
         self as _
     }
@@ -928,6 +981,7 @@ impl OPT {
         let val = unsafe { opts[idx] };
         val
     }
+    #[inline(always)]
     pub fn unset(self) -> c_char {
         !self.isset()
     }
@@ -935,7 +989,6 @@ impl OPT {
     /// Set or unset an option, as a result of user request.
     /// # Safety
     /// Caller asserts no contention.
-    #[allow(static_mut_refs)]
     pub unsafe fn setoption(self, value: c_int, force: bool) {
         unsafe { dosetopt(self.as_int(), value, force as _, opts.as_mut_ptr()) };
     }
@@ -993,19 +1046,18 @@ pub fn IN_EVAL_TRAP() -> bool {
     unsafe { intrap != 0 && trapisfunc == 0 && traplocallevel == locallevel }
 }
 
-#[allow(static_mut_refs)]
 pub const unsafe fn EXITHOOK() -> &'static mut hookdef {
     unsafe { zshhooks.as_mut_ptr().as_mut_unchecked() }
 }
-#[allow(static_mut_refs)]
+
 pub const unsafe fn BEFORETRAPHOOK() -> &'static mut hookdef {
     unsafe { zshhooks.as_mut_ptr().add(1).as_mut_unchecked() }
 }
-#[allow(static_mut_refs)]
+
 pub const unsafe fn AFTERTRAPHOOK() -> &'static mut hookdef {
     unsafe { zshhooks.as_mut_ptr().add(2).as_mut_unchecked() }
 }
-#[allow(static_mut_refs)]
+
 pub const unsafe fn GETCOLORATTR() -> &'static mut hookdef {
     unsafe { zshhooks.as_mut_ptr().add(3).as_mut_unchecked() }
 }
