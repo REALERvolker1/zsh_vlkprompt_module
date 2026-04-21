@@ -18,14 +18,14 @@ use crate::{
     ScanTabFunc, StrMathFunc, VALFLAG_EMPTY, VALFLAG_INV, VALFLAG_REFSLICE, VALFLAG_SUBST,
     VSIGCOUNT, WrapFunc, addparamdef, asgment, builtin, conddef, convchar_t, createparam, curhist,
     dosetopt, emulation, eprog, export_param, features, funcwrap, getarrvalue, getintvalue,
-    getiparam, getnumvalue, getsparam, getsparam_u, getstrvalue, gsu_array, gsu_float, gsu_hash,
-    gsu_integer, gsu_scalar, hashnode, hashtable, heap, hist_ring, hookdef, intrap, lextok,
-    linklist, linknode, locallevel, matheval, mathfunc, mb_charinit, mb_metacharlenconv,
-    mb_metastrlenend, mb_niceformat, mnumber, mnumber__bindgen_ty_1, new_heaps, old_heaps,
-    optlookup, optlookupc, opts, param, paramdef, queue_front, queue_rear, queueing_enabled,
-    resetparam, setnumvalue, setstrvalue, sig_msg, sigchld_mask, signal_block, signal_mask,
-    signal_mask_queue, signal_queue, signal_setmask, signal_unblock, stophist, switch_heaps, tclen,
-    trapisfunc, traplocallevel, unsetparam_pm, value, zero_mnumber, zhandler, zlong, zshhooks,
+    getiparam, getnumvalue, getsparam, getstrvalue, gsu_array, gsu_float, gsu_hash, gsu_integer,
+    gsu_scalar, hashnode, hashtable, heap, hist_ring, hookdef, intrap, lextok, linklist, linknode,
+    locallevel, matheval, mathfunc, mb_charinit, mb_metacharlenconv, mb_metastrlenend,
+    mb_niceformat, mnumber, mnumber__bindgen_ty_1, new_heaps, old_heaps, optlookup, optlookupc,
+    opts, param, paramdef, queue_front, queue_rear, queueing_enabled, resetparam, setnumvalue,
+    setstrvalue, sig_msg, sigchld_mask, signal_block, signal_mask, signal_mask_queue, signal_queue,
+    signal_setmask, signal_unblock, stophist, switch_heaps, tclen, trapisfunc, traplocallevel,
+    unsetparam_pm, value, zero_mnumber, zhandler, zlong, zshhooks,
 };
 
 impl asgment {
@@ -939,13 +939,17 @@ impl ParamType for zlong {
         unsafe { getiparam(param) }
     }
 }
-impl ParamType for *mut c_char {
+impl ParamType for MetaString {
     unsafe fn cast_value_or_default(value: &mut value) -> Self {
-        unsafe { value.to_zheap_str() }
+        Self {
+            ptr: unsafe { value.to_zheap_str() },
+        }
     }
     unsafe fn get_param_or_default(param: *mut c_char) -> Self {
         // unsafe { getsparam_u(param) }
-        unsafe { getsparam(param) }
+        Self {
+            ptr: unsafe { getsparam(param) },
+        }
     }
 }
 
@@ -993,17 +997,17 @@ impl OPT {
         unsafe { dosetopt(self.as_int(), value, force as _, opts.as_mut_ptr()) };
     }
 
-    pub fn optlookupc(c: c_char) -> Self {
+    pub unsafe fn optlookupc(c: c_char) -> Self {
         // SAFETY: The lookup table is defined in const in zsh itself
         unsafe { transmute(optlookupc(c)) }
     }
-    pub fn optlookup(name: *const c_char) -> Self {
+    pub unsafe fn optlookup(name: *const c_char) -> Self {
         // SAFETY: The lookup table is defined in const in zsh itself
         unsafe { transmute(optlookup(name)) }
     }
 }
 
-pub fn tccan(X: c_int) -> c_int {
+pub unsafe fn tccan(X: c_int) -> c_int {
     let idx = X as usize;
     unsafe { tclen[idx] }
 }
@@ -1042,7 +1046,7 @@ pub unsafe fn with_heap<R>(h: *mut heap, f: impl FnOnce() -> R) -> R {
     res
 }
 
-pub fn IN_EVAL_TRAP() -> bool {
+pub unsafe fn IN_EVAL_TRAP() -> bool {
     unsafe { intrap != 0 && trapisfunc == 0 && traplocallevel == locallevel }
 }
 
@@ -1063,6 +1067,14 @@ pub const unsafe fn GETCOLORATTR() -> &'static mut hookdef {
 }
 
 impl features {
+    #[inline(always)]
+    pub const fn new() -> Self {
+        Self::CONST_DEFAULT
+    }
+    #[inline(always)]
+    pub const fn builder() -> Self {
+        Self::CONST_DEFAULT
+    }
     pub const fn with_builtins(mut self, builtins: &'static mut [builtin]) -> Self {
         self.bn_list = builtins.as_mut_ptr();
         self.bn_size = builtins.len() as _;
@@ -1100,38 +1112,47 @@ impl features {
     };
 }
 impl Default for features {
+    #[inline(always)]
     fn default() -> Self {
         Self::CONST_DEFAULT
     }
 }
 
 pub struct MetaString {
-    s: *mut c_char,
+    pub ptr: *mut c_char,
 }
 impl MetaString {
+    #[inline(always)]
     pub unsafe fn nicezputs(&self, outs: *mut libc::FILE) {
-        unsafe { mb_niceformat(self.s, outs, null_mut(), 0) };
+        unsafe { mb_niceformat(self.ptr, outs, null_mut(), 0) };
     }
+    #[inline(always)]
     pub unsafe fn MB_METACHARINIT() {
         unsafe { mb_charinit() };
     }
+    #[inline(always)]
     pub unsafe fn MB_METACHARLENCONV(&self, wcp: *mut convchar_t) -> c_int {
-        unsafe { mb_metacharlenconv(self.s, wcp) }
+        unsafe { mb_metacharlenconv(self.ptr, wcp) }
     }
+    #[inline(always)]
     pub unsafe fn MB_METACHARLEN(&self) -> c_int {
         unsafe { self.MB_METACHARLENCONV(null_mut()) }
     }
+    #[inline(always)]
     pub unsafe fn MB_METASTRLEN(&self) -> c_int {
-        unsafe { mb_metastrlenend(self.s, 0, null_mut()) }
+        unsafe { mb_metastrlenend(self.ptr, 0, null_mut()) }
     }
+    #[inline(always)]
     pub unsafe fn MB_METASTRWIDTH(&self) -> c_int {
-        unsafe { mb_metastrlenend(self.s, 1, null_mut()) }
+        unsafe { mb_metastrlenend(self.ptr, 1, null_mut()) }
     }
+    #[inline(always)]
     pub fn MB_METASTRLEN2(&self, widthp: c_int) -> c_int {
-        unsafe { mb_metastrlenend(self.s, widthp, null_mut()) }
+        unsafe { mb_metastrlenend(self.ptr, widthp, null_mut()) }
     }
+    #[inline(always)]
     pub unsafe fn MB_METASTRLEN2END(&self, widthp: c_int, eptr: &Self) -> i32 {
-        unsafe { mb_metastrlenend(self.s, widthp, eptr.s) }
+        unsafe { mb_metastrlenend(self.ptr, widthp, eptr.ptr) }
     }
 }
 pub use crate::mb_charinit as MB_CHARINIT;
