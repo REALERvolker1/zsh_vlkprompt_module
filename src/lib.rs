@@ -29,10 +29,10 @@ unsafe extern "C" fn bin_example(
     nam: *mut c_char,
     mut args: *mut *mut c_char,
     opts: *mut options,
-    func: c_int,
+    _func: c_int,
 ) -> c_int {
     let old = EXCOUNT.fetch_add(1, ::core::sync::atomic::Ordering::AcqRel);
-    let oargs = args;
+    let _oargs = args;
     stdout_println("Options:");
     (32..128).for_each(|c| {
         // TODO: Add wrapper for this:
@@ -91,14 +91,14 @@ static mut FEATURES: Static<features> = Static(
 
 /// Initial memory allocation and basic setup. Called before dependencies are checked.
 #[unsafe(no_mangle)]
-pub extern "C" fn setup_(m: *mut module) -> c_int {
+pub extern "C" fn setup_(_m: *mut module) -> c_int {
     stdout_println("The example module has now been set up.");
     // let mymod = unsafe { module::M };
     0
 }
 /// Final initialization. Features are registered here (e.g., [`addbuiltins`](zsh_sys::addbuiltins)).
 #[unsafe(no_mangle)]
-pub extern "C" fn boot_(m: *mut module) -> c_int {
+pub extern "C" fn boot_(_m: *mut module) -> c_int {
     // let me = unsafe { Box::from_raw(module) };
     0
 }
@@ -111,7 +111,7 @@ pub extern "C" fn cleanup_(m: *mut module) -> c_int {
 }
 /// Final cleanup before memory deallocation.
 #[unsafe(no_mangle)]
-pub extern "C" fn finish_(module: *mut module) -> c_int {
+pub extern "C" fn finish_(_module: *mut module) -> c_int {
     stdout_println("Thank you for using the example module.  Have a nice day.");
     // let me = unsafe { Box::from_raw(module) };
     0
