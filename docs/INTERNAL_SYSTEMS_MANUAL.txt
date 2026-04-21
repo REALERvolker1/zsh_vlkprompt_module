@@ -1,0 +1,93 @@
+Zsh Internal Systems Manual - Developer Reference
+
+CORE ARCHITECTURE
+- Single-threaded event loop in init.c loop()
+- Global state in zsh.h: noerrexit, this_noerrexit, sigchld_mask, zshhooks, sourcelevel, inwhat, errflag
+- Pipeline: lex → parse → compile → execlist → execcmd
+- Subshells via vfork+exec in entersubsh()→addproc()
+- State mutated at: tokstr (lexer), lexbuf (lexer), noerrexit (executor), inwhat (lexer), module flags
+
+MEMORY MODEL
+- zalloc/zfree/zrealloc wrappers around malloc/free; use consistently
+- pushheap/popheap/freeheap for scoped arenas; pointers invalid after pop
+- LBUFFER/RBUFFER owned by lexer (lexbuf), reallocates via hrealloc
+- tokstr valid until next gettok()/zshlex()
+- prog->prog, prog->strs invalid after freeprog()
+- Never mix zalloc with free; use zfree
+- No formal ownership; convention-based
+
+MODULE SYSTEM (module.c)
+- struct module has hashnode + union {handle|linked|alias} + autoloads + deps + wrapper
+- Lifecycle: setup_ (once, at load) → boot_ (first use) → cleanup_ (on remove) → finish_ (at exit)
+- setup_: heap stable, no signals, no ZLE, no exec
+- boot_: may be called multiple times after cleanup_; handles may be NULL (autoload)
+- cleanup_: module still functional; handles/linked not freed by us
+- finish_: shell shutting down; no shell functions
+- MOD_SETUP, MOD_INIT_B, MOD_BUSY flags; check before calling module functions
+- Reentrancy: setup called once; boot may be called after cleanup; reload supported
+
+ZLE (Zle/*.c)
+- lexbuf (static struct lexbufstate) owns input; toks/lexbuf.ptr invalidated on realloc
+- tclines/tccolours/hasam set by termcap; use tcstr/tclen
+- inwhat (IN_*) indicates lexer context; changes per token
+- widget dispatch: zle_main→get_token→dispatch_widget→widget_func
+- hook points: line-init, line-pre-redraw, line-finished; safe to modify buffer in pre-redraw
+- Signal handlers (TRAP*) must not modify ZLE buffers; use queued signals
+- NEVER re-enter zshlex() from widget (corrupts inwhat)
+
+COMPLETION (compcore.c, complete.c)
+- Trigger: _main_complete → compgen/compctl → matches → compadd → compstate
+- compstate associative array: state, state_desc, menu, current, list, listmax, match, matches, insert, unambiguous, menu_complete, remove
+- compadd returns 0 if matches added, 1 if none; accumulates in preexp/match_list
+- DO: save/restore compstate around custom completion; pair compadd with proper setup
+- DONT: call execlist from completion; modify compstate without coordination
+
+GLOBAL STATE & SIDE EFFECTS
+- noerrexit / this_noerrexit: nested; this_noerrexit local to expression
+- sigchld_mask: stable; signal handlers only read/modify via signal_block/unblock
+- tokstr, lexbuf: volatile; reset on each lexical entry
+- inwhat: per-token; may leak across sourced files
+- Module flags: persist across cleanup→boot transitions
+
+SIGNALS & ASYNC
+- TRAP* via zhandler(); queued with queue_signals/unqueue_signals
+- ONLY async-signal-safe ops in handlers: flag sets, write(), signal()
+- NEVER: zalloc/zfree, zshlex, printf, ZLE buffer ops, execlist, module functions
+- Handlers must not corrupt lexbuf, tokstr, compstate, or any complex global
+
+THREAD SAFETY
+- Zsh is NOT thread-safe; no internal mutexes
+- DO NOT spawn threads from modules; use fork+exec if isolation needed
+- Data races on: lexbuf, compstate, noerrexit, module flags, execstack, all global state
+- Undefined behavior, likely crash
+
+COMMON EXTENSION PITFALLS
+- Buffer invalidation: hold indices not pointers across gettok()
+- Use-after-free: never cache prog->prog, prog->strs, prog->pats after freeprog
+- Reentrancy: guard widget recursion with flags
+- FD leaks: every open has close; cleanup_ must free module-owned FDs
+- Signal corruption: do not modify state in TRAP handlers; queue instead
+- Module reload race: check MOD_INIT_B before using module functions
+- Heap mismatch: always pair zalloc with zfree
+
+FFI BOUNDARY GUIDELINES
+- All Zsh C API pointers are unsafe: Module, Eprog, Wordcode, char*
+- Copy-out strings at FFI boundary; never pass Zsh pointers across FFI
+- Use indices or arenas with explicit lifetimes
+- ALL extern "C" Zsh functions are unsafe; wrap with Pin, arenas, copy semantics
+- Never store Zsh pointers across FFI calls unless you control entire call chain
+
+SUBSYSTEM CONTRACTS
+- Parser (parse.c, lex.c): tokstr/lexbuf valid until next gettok; do not call zshlex directly
+- Execution (exec.c): noerrexit/this_noerrexit properly nested; pipestats matches pipeline depth
+- Completion (compcore.c, complete.c): compstate valid until next completion; always use compadd protocol
+- Modules (module.c): check MOD_* flags; setup called once; boot may be repeated; cleanup does not free linked/handle
+
+QUICK REFERENCE
+- Use pushheap/popheap for temporary allocations
+- Always pair zalloc/zfree; never free heap memory manually
+- Never hold pointers across heap pops
+- Signals: set flags only; defer complex work via queued signals
+- Threads: use fork, not threads
+- Completion: save/restore compstate; use compadd; no execlist in handlers
+- Modules: respect lifecycle; check flags; never call setup directly

@@ -1,0 +1,2069 @@
+-----------------
+THE Z SHELL (ZSH)
+-----------------
+
+Version
+-------
+
+This is version 5.10 of the shell.  This is a security and feature release.
+There are several visible improvements since 5.9, as well as bug fixes.
+All zsh installations are encouraged to upgrade as soon as possible.
+
+Note in particular the changes highlighted under "Incompatibilities since
+5.9" below.  See NEWS for more information.
+
+Installing Zsh
+--------------
+
+The instructions for compiling zsh are in the file INSTALL.  You should
+also check the file MACHINES in the top directory to see if there
+are any special instructions for your particular architecture.
+
+Note in particular the zsh/newuser module that guides new users through
+setting basic shell options without the administrator's intervention.  This
+is turned on by default.  See the section AUTOMATIC NEW USER CONFIGURATION
+in INSTALL for configuration information.
+
+------------
+ZSH FEATURES
+------------
+
+very close to ksh/sh grammar, with csh additions
+most features of ksh, bash, and tcsh
+can emulate ksh or POSIX sh
+100 builtins, 145 options, 166 key bindings
+short for loops, ex: for i (*.c) echo $i
+select
+shell functions
+autoloaded functions (loaded from a file when they are first referenced)
+conditional expressions (test builtin, [ ... ], and ksh-style [[ ... ]])
+global aliases (may be expanded anywhere on the line)
+directory stack access with ~num
+process substitution (vi =(cmd) edits the output of cmd)
+generalized pipes (ls foo >>(cmd1) 2>>(cmd2) pipes stdout to cmd1
+  and stderr to cmd2)
+arithmetic expressions
+advanced globbing:
+  ls **/file  searches recursively for "file" in subdirectories
+  ls file<20->  matches file20, file21, file22, etc.
+  ls *.(c|pro)  matches *.c and *.pro
+  ls *(R)  matches only world-readable files
+  ls *.c~lex.c  matches all .c files except lex.c
+  ls (#a1)README  matches README with one error, e.g. RADME, REEDME, RAEDME
+  ls (#ia1)README same but case insensitive
+qualifiers in parentheses after globbing expression:
+  ls *(*@)  matches executable files/directories or symlinks
+  ls *(L0f.go-w.)  matches all zero-length files not group or world writable
+  ls *(om[1,3])  matches the three most recently modified files
+  ls *(om[2])  matches the second most recently modified file
+null command shorthands:
+  "< file" is same as "more <file"
+  "> file" is same as "cat >file"
+  ">> file" is same as "cat >>file"
+ksh-style coprocesses
+automatic file stream teeing (ls >foo >bar puts output in two places)
+chpwd() function run every time you change directory (useful for
+  updating the status line)
+job control
+csh-style history
+full vi line editing, including "c2w" and "y$" and such things
+full emacs line editing
+line editor is programmable via shell functions
+  - access and manipulate editor state via builtins and parameters
+  - user-defined `widgets' behave like other editor functions
+  - keymap customisation
+  - example functions provided
+incremental history search
+magic-space history
+spelling correction
+array parameters
+associative array parameters
+tie parameters a la path/PATH, e.g. ld_library_path/LD_LIBRARY_PATH
+$MACHTYPE, $VENDOR and $OSTYPE identify the host machine
+$LINENO, $RANDOM, $SECONDS, $cdpath, $COLUMNS, $fignore, $HISTCHARS, $mailpath
+$UID, $EUID, $GID, $EGID and $USERNAME can be assigned to
+with autocd option, typing a directory name by itself is the same as
+  typing "cd dirname"
+incremental path hashing
+automatic process time reporting for commands that run over a certain limit
+full tcsh-style prompt substitution plus conditional prompt expressions
+utmp login/logout reporting
+with histverify option, performing csh-style history expansions causes the
+  input line to be brought up for editing instead of being executed
+with sunkeyboardhack option, accidentally typed trailing ` characters
+  are removed from the input line (for those of you with Sun keyboards :-) )
+with KEYBOARD_HACK, any accidentally typed trailing ascii character can be junked
+"cd old new" replaces "old" with "new" in directory string
+generalized argument completion, new system based on shell functions:
+  - highly context sensitive
+  - large (and I mean large) set of completions supplied, from a2ps to zstyle
+  - partial file path completion
+  - spelling correction and approximate completion of any completable word
+  - highly configurable expansion of shell arguments
+  - completion list colouring [`colorizing' for you lot over there]
+  - selection of completion elements with the cursor
+  - full scrolling of lists (in optional module)
+  - completion of words from the history list
+  - `styles' feature for versatile configuration
+  - `tags' feature for choosing completions preferentially
+  - `match' specifications, allowing e.g.
+    - variant forms:  NO_glob, noglob, _NOGLOB_ all from the keyword glob
+    - partial-word matches with arbitrary anchors, e.g.
+      z_t.c -> zle_tricky.c
+      c.u.s -> comp.unix.shell
+    - complete control over case-insensitive matching
+    - can be defined globally or for individual completions
+  - bindable special completion functions
+menu completion: pressing TAB repeatedly cycles through the possible matches
+prompt on right side of screen
+directory stacks
+history datestamps and execution time records
+command scheduling (like at(1), but in the shell's context)
+tty mode freezing
+up to 9 startup files (but you only need 1 or 2)
+really 8-bit clean, and we mean it this time
+which -a cmd lists all occurrences of "cmd" in the path
+floating point support
+dynamically loadable binary modules, supplied modules include
+  - an FTP client which runs in the shell, with function suite
+  - math functions
+  - builtin interface to the `stat' system command
+  - builtin versions of standard commands (mv, ln, etc.) for emergencies
+  - special parameters to access internal state of hash tables etc.
+  - special associative array to access contents of files directly
+  - profiler for shell functions
+  - a pseudo-terminal handler, for purposes like `expect'
+  - builtins for interaction with termcap and terminfo
+
+Incompatibilities since 5.9
+---------------------------
+
+The line editor's default keymap is now the "emacs" keymap regardless of the
+value of the environment variables $VISUAL and $EDITOR.  This only affects you
+if your $VISUAL or $EDITOR environment variable is set to a value that
+contains the string "vi".  To get the previous behaviour, add
+
+    bindkey -v
+
+or, if your $VISUAL and $EDITOR environment variables vary,
+
+    if [[ ${VISUAL} == *vi* || ${EDITOR} == *vi* ]]; then
+        bindkey -v
+    else
+        bindkey -e
+    fi
+
+to your .zshrc file.  These snippets are compatible with previous
+versions of the shell.
+
+Restricted mode has been removed.  This was associated with the option
+RESTRICTED (-r).  This was an outdated way to restrict what users may do and
+was very difficult to apply safely.  Furthermore, modern systems have better,
+safer and more reliable ways to confine user actions.
+
+The ERR_EXIT and ERR_RETURN options were refined to be more self-
+consistent and better aligned with the POSIX-2017 specification of
+`set -e`:
+
+  - Function calls or anonymous functions prefixed with `!` now never
+    trigger exit or return. Negated function calls or anonymous
+    functions used to trigger exit or return if ERR_EXIT or ERR_RETURN
+    was set and the function call or anonymous function returned a
+    zero exit status. Example:
+
+      setopt ERR_EXIT
+      f() { true }
+      ! f
+      echo "This is printed only since 5.10."
+
+  - The `always` command now ignores ERR_EXIT and ERR_RETURN, as other
+    complex commands do, if its exit status comes from a command
+    executed while the option is ignored. Example:
+
+      setopt ERR_EXIT
+      { false && true } always { echo "This was and still is printed." }
+      echo "This is printed only since 5.10."
+
+  - Function calls, anonymous functions, and the `eval`, `.`, and
+    `source` builtins now never ignore ERR_EXIT and ERR_RETURN on
+    their own. These commands used to ignore ERR_EXIT and ERR_RETURN
+    if their result came from a complex command (if, for, ...) whose
+    result came from a command executed while the option is
+    ignored. Example:
+
+      setopt ERR_EXIT
+      f() { if true; then false && true; fi }
+      f
+      echo "This is printed only prior to 5.10."
+
+  - The `&&` and `||` operators now always ignore ERR_RETURN in their
+    left operand. Until this version, the operators failed to ignore
+    ERR_RETURN in their left operand if they were executed as part of
+    a function call or an anonymous function that was itself executed
+    in a context where ERR_RETURN is ignored. Example:
+
+      setopt ERR_RETURN
+      f() { { false; echo "This is printed only since 5.10." } || true }
+      if f; then true; fi
+
+PCRE support is now PCRE2.
+
+Parameter names may begin with a "." and follow a relaxed implementation
+of ksh namespace syntax.  Expansion of such parameters must use braces,
+that is, in ${.param.name} form.  Parameters so named are excluded from
+`typeset` and `set` output unless explicitly listed in `typeset` arguments
+or matched by a pattern with `typeset -m`.
+
+Interpretation of exclusion-patterns following alternation-patterns has
+been rationalised.  This means for example that `[[ ab = (|a*)~^(*b) ]]`
+is true where previously it was false.
+
+Improvements to handling of terminal colors and attributes in prompts
+may change the behavior of some prompt sequences, most notably in
+cases where `esq=${(%)...}` is used to capture an escape sequence.
+
+The `which` and `functions` commands output function definitions in a
+format independent of the MULTI_FUNC_DEF option.
+
+Math context no longer interprets a leading underscore as part of a
+numeric constant.
+
+Nul and characters greater than \x77 are correctly handled by `read -d`.
+
+Return values of `sysopen` from the zsh/system module have been updated
+to be more similar to other commands in that module.
+
+Tied parameters created with the zsh/db/gdbm module may not be re-tied
+as locals in nested function scope.  This prevents database corruption
+when a function scope ends.
+
+The zsh/datetime module's strftime builtin now exports a set-but-empty
+TZ parameter (as in `TZ= strftime ...`) for use by the underlying
+library.  On most systems, this is equivalent to setting TZ to UTC.
+
+The typeset builtin now prints the floating-point values NaN, Inf, and
+-Inf using that capitalisation, which matches the capitalisation used by
+arithmetic expansion.  (Previously they were printed in lowercase.)
+
+Documentation
+-------------
+
+There are a number of documents about zsh in this distribution:
+
+Doc/Zsh/*.yo	The master source for the zsh documentation is written in
+		yodl.  Yodl is a document language written by Karel Kubat.
+		It is not required by zsh but it is a nice program so you
+		might want to get it anyway, especially if you are a zsh
+		developer.  It can be downloaded from
+		https://fbb-git.github.io/yodl/
+
+Doc/zsh*.1	Man pages in nroff format.  These will be installed
+		by "make install.man" or "make install".  By default,
+		these will be installed in /usr/local/man/man1, although
+		you can change this with the --mandir option to configure
+		or editing the user configuration section of the top level
+		Makefile.
+
+Doc/zsh.texi	Everything the man pages have, but in texinfo format.  These
+		will be installed by "make install.info" or "make install".
+		By default, these will be installed in /usr/local/info,
+		although you can change this with the --infodir option to
+		configure or editing the user configuration section of the
+		top level Makefile.  Version 4.0 or above of the
+		Texinfo tools are recommended for processing this file.
+
+Also included in the distribution are:
+
+Doc/intro.ms	An introduction to zsh in troff format using the ms
+		macros.  This document explains many of the features
+		that make zsh more equal than other shells.
+		Unfortunately this is based on zsh-2.5 so some examples
+		may not work without changes but it is still a good
+		introduction.
+
+For more information, see the website, as described in the META-FAQ.
+
+If you do not have the necessary tools to process these documents, PDF,
+Info and DVI versions are available in the separate file zsh-doc.tar.gz at
+the archive sites listed in the META-FAQ.
+
+The distribution also contains a Perl script in Utils/helpfiles which
+can be used to extract the descriptions of builtin commands from the
+zshbuiltins manual page.  See the comments at the beginning of the
+script about its usage.  The files created by this script can be used
+by example function run-help located in the subdirectory Functions/Misc to
+show information about zsh builtins and run `man' on external commands.
+For this the shell variable HELPDIR should point to a directory containing
+the files generated by the helpfiles script.  run-help should be
+unaliased before loading the run-help function.  After that this function
+will be executed by the run-help ZLE function which is by default bound
+to ESC-h in emacs mode.
+
+Examples
+--------
+
+Examples of zsh startup files are located in the subdirectory
+StartupFiles.  Examples of zsh functions and scripts are located in
+the subdirectory Functions.  Examples of completion control commands
+(compctl) are located in the file Misc/compctl-examples.
+
+Zsh FTP Sites, Web Pages, and Mailing Lists
+-------------------------------------------
+
+The current list of zsh FTP sites, web pages, and mailing lists can be
+found in the META-FAQ.  A copy is included in this distribution and is
+available separately at any of the zsh FTP sites.
+
+Common Problems and Frequently Asked Questions
+----------------------------------------------
+
+Zsh has a list of Frequently Asked Questions (FAQ) maintained by Peter
+Stephenson <pws@zsh.org>.  It covers many common problems encountered
+when building, installing, and using zsh.  A copy is included in this
+distribution in Etc/FAQ and is available separately at any of the zsh
+ftp sites.
+
+Zsh Maintenance and Bug Reports
+-------------------------------
+
+Zsh is currently maintained by the members of the zsh-workers mailing list
+and coordinated by Peter Stephenson <coordinator@zsh.org>.  Please send
+any feedback and bugs reports to <zsh-workers@zsh.org>.
+
+Reports are most helpful if you can reproduce the bug starting zsh with
+the -f option.  This skips the execution of local startup files except
+/etc/zshenv.  If a bug occurs only when some options set try to locate
+the option which triggers the bug.
+
+There is a script "reporter" in the subdirectory Util which will print out
+your current shell environment/setup.  If you cannot reproduce the bug
+with "zsh -f", use this script and include the output from sourcing this
+file.  This way, the problem you are reporting can be recreated.
+
+The known bugs in zsh are listed in the file Etc/BUGS.  Check this as
+well as the Frequently Asked Questions (FAQ) list before sending a bug
+report.  Note that zsh has some features which are not compatible with
+sh but these are not bugs.  Most of these incompatibilities go away
+when zsh is invoked as sh or ksh (e.g. using a symbolic link).
+
+If you send a bug report to the list and are not a subscriber, please
+mention this in your message if you want a response.
+
+If you would like to contribute to the development and maintenance of zsh,
+then you should join the zsh-workers mailing list (check the META-FAQ
+for info on this).  You should also read the "zsh-development-guide"
+located in the subdirectory Etc.
+
+------------------------------
+GUIDELINES FOR ZSH DEVELOPMENT
+------------------------------
+
+Zsh is currently developed and maintained by the Zsh Development Group.
+This development takes place by mailing list.  Check the META-FAQ for the
+various zsh mailing lists and how to subscribe to them.  The development
+is very open and anyone is welcomed and encouraged to join and contribute.
+Because zsh is a very large package whose development can sometimes
+be very rapid, we kindly ask that people observe a few guidelines when
+contributing patches and feedback to the mailing list.  These guidelines
+are very simple and hopefully should make for a more orderly development
+of zsh.
+
+Tools
+-----
+
+To develop (as opposed to just build) zsh, you'll need a few specialised
+tools:
+
+* GNU autoconf, version 2.50 or later.  This version contained
+  significant enhancements and earlier versions will no
+  longer work.
+
+* GNU m4.  (Required by autoconf.)
+
+* yodl.
+
+* texi2html.
+
+Patches
+-------
+
+* Send all patches to the mailing list rather than directly to me.
+
+* Send only context diffs "diff -c oldfile newfile" or unified diffs
+  "diff -u oldfile newfile".  They are much easier to read and
+  understand while also allowing the patch program to patch more
+  intelligently.  Please make sure the filenames in the diff header
+  are relative to the top-level directory of the zsh distribution; for
+  example, it should say "Src/init.c" rather than "init.c" or
+  "zsh/Src/init.c".  Git-style naming of diffs is also acceptable.
+
+* Please put only one bug fix or feature enhancement in a single patch and
+  only one patch per mail message.  This helps me to multiplex the many
+  (possibly conflicting) patches that I receive for zsh.  You shouldn't
+  needlessly split patches, but send them in the smallest LOGICAL unit.
+
+* If a patch depends on other patches, then please say so.  Also please
+  mention what version of zsh this patch is for.
+
+* Please test your patch and make sure it applies cleanly. It takes
+  considerably more time to manually merge a patch into the baseline code.
+
+* By convention, patches should be sent with a Subject: line starting with
+  one of "PATCH:", "[PATCH]" or "[PATCH n/m]" (for a patch series).
+
+Git Workflow
+------------
+
+Zsh has migrated from CVS to git for version control. Thus far, we have
+avoided further changes to our workflow.
+
+ * To allow changesets to be cross-referenced between the mailing list
+   archives and version control history, commit messages should start with
+   the mailing list sequence number. This number is generated by the list
+   server and inserted as an X-Seq: header field in the e-mail.
+
+   Your email client may be able to be configured to show the X-Seq:
+   header by default, and probably has a way to view the raw full headers
+   of an email.  The X-Seq header is also shown on the
+   https://www.zsh.org/mla/ email archives.  We can also, upon request,
+   set up an email-based bot that, whenever you post a patch to the
+   mailing list, will send you an offlist reply with the X-Seq number of
+   your patch.
+
+ * An entry in the ChangeLog file should be added manually before pushing
+   a commit to the master repository. Don't create a separate change for
+   this: amend the existing commit in your local repository.
+
+   Several developers use scripts to automate part or all of the ChangeLog
+   workflow:
+
+     Subject: helper script for making ChangeLog entries
+     X-Seq: 33835, 33872, 34912
+     http://www.zsh.org/mla/workers/2014/msg01622.html
+     http://www.zsh.org/mla/workers/2014/msg01659.html
+     -> https://github.com/ft/zsh-am
+     http://www.zsh.org/mla/workers/2015/msg00836.html
+     -> https://github.com/danielshahaf/zsh-dev
+
+     Subject: Re: _git commit object name completion
+     X-Seq: 35414
+     http://www.zsh.org/mla/workers/2015/msg01338.html
+
+ * Do not merge your private feature branches onto the master branch: a
+   linear history without merge commits is simpler to follow (and to
+   bisect).
+
+Use of Git
+----------
+
+Micro Git Tutorial:
+
+  % $VISUAL file1.c file2.c new-file3.c
+  % git add new-file3.c
+  % git commit -a
+  % git pull --rebase
+  % git push
+
+ "git commit -a" automatically finds files which are tracked and have
+ been modified, but doesn't pick up new files; "git add" adds a file to
+ the index to be part of the next commit, and can be used for new files
+ or for existing files (commit -a is a shortcut for the latter)
+
+"git pull --rebase" ensures your local branch is up to date, needed
+before pushing; the "--rebase" option means that any changes
+in files also modified by you are handled by replaying your changes
+onto the remote ones, which avoids any unnecessary merges in the
+resulting history.
+
+ "git push" assumes that you're on the master branch and the repository
+ was created by cloning it from some place, with default options.
+
+Using a Local Feature Branch:
+
+  % git checkout -b feature_foo
+  % $VISUAL path/to/files ...
+  % git commit -a
+  [ generate single patch for changes ]
+  % git diff master
+  [ do mailing-list stuff here ]
+  [ Switch back to master: ]
+  % git checkout master
+  [ and get the most recent changes: ]
+  % git pull
+  [ make the branch content now be relative to *new* master tip ]
+  % git checkout feature_foo
+  % git rebase master
+  [ then bring in your changes: ]
+  % git checkout master
+  % git merge --squash feature_foo
+  % $VISUAL ChangeLog
+  % git add ChangeLog
+  % git commit --amend
+  % git push
+  [ cleanup ]
+  % git branch -d feature_foo
+
+  The above assumes you want all your changes on the feature branch to be
+  seen as a single change publicly. The normal git way to generate patches
+  is to use git format-patch which produces separate patches already
+  prepared for e-mailing. If you want to keep changes separate, don't use
+  the --squash option to git merge. In this case, it can be wise to use
+  --ff-only which ensures that you don't get a merge commit by only doing
+  the merge if the master can be trivially moved forward. An alternative is
+  to use git cherry-pick to pick out individual changes.
+
+Git further reading:
+ * git help tutorial
+ * git help tutorial-2
+ * git help gitcore-tutorial
+ * http://www-cs-students.stanford.edu/~blynn/gitmagic/
+
+Testing
+-------
+
+* Because zsh has a huge number of different options and interacts with
+  a wide range of human and artificial life, it is very difficult to
+  test the shell thoroughly.  For this purpose, the Test subdirectory
+  exists.  It consists of a driver script (ztst.zsh) and various test
+  files (*.ztst) in a format which is described in B01cd.ztst, which acts
+  as a template.  It is designed to make it easy to provide input to
+  chunks of shell code and to test the corresponding standard output,
+  error output and exit status.
+
+* There is not much there yet, but please don't let that put you off adding
+  tests for basic syntactic features, builtins, options etc. which you
+  know to be flakey or to have had difficulties in the past.  Better
+  support for testing job control and interactive features is expected
+  to follow eventually.
+
+* The directory is not part of the usual process of building and
+  installation.  To run the tests, go to Test and `make check'.  Please
+  report any errors with all the usual information about the zsh version
+  and the system you are using.
+
+C coding style
+--------------
+
+* The primary language is ANSI C as defined by the 1989 standard, but the
+  code should always be compatible with late K&R era compilers ("The C
+  Programming Language" 1st edition, plus "void" and "enum").  There are
+  many hacks to avoid the need to actually restrict the code to K&R C --
+  check out the configure tests -- but always bear the compatibility
+  requirements in mind.  In particular, preprocessing directives must
+  have the "#" unindented, and string pasting is not available.
+
+* Conversely, there are preprocessor macros to provide safe access to some
+  language features not present in pure ANSI C, such as variable-length
+  arrays.  Always use the macros if you want to use these facilities.
+
+* Avoid writing code that generates warnings under gcc with the default
+  options set by the configure script.  For example, write
+  "if ((foo = bar))" rather than "if (foo = bar)".
+
+* Please try not using lines longer than 79 characters.
+
+* The indent/brace style is Kernighan and Ritchie with 4 characters
+  indentations (with leading tab characters replacing sequences of
+  8 spaces).  This means that the opening brace is the last character
+  in the line of the if/while/for/do statement and the closing brace
+  has its own line:
+
+      if (foo) {
+	  do that
+      }
+
+* Put only one simple statement on a line.  The body of an if/while/for/do
+  statement has its own line with 4 characters indentation even if there
+  are no braces.
+
+* Do not use space between the function name and the opening parenthesis.
+  Use space after if/for/while.  Use space after type casts.
+
+* If you use emacs 19.30 or newer you can put the following line to your
+  ~/.emacs file to make these formatting rules the default:
+
+    (add-hook 'c-mode-common-hook (function (lambda () (c-set-style "BSD"))))
+
+* Function declarations must look like this:
+
+  /**/
+  int
+  foo(char *s, char **p)
+  {
+      function body
+  }
+
+  There must be an empty line, a line with "/**/", a line with the
+  type of the function, and finally the name of the function with typed
+  arguments.  These lines must not be indented.  The script generating
+  function prototypes depends on this format.
+
+* Variable declarations must similarly be preceded by a
+  line containing only "/**/", for the prototype generation script.
+  The declaration itself should be all on one line (except for multi-line
+  initialisers).
+
+* Preprocessor directives that affect the function/variable declarations must
+  also be preceded by a "/**/" line, so that they get copied into the
+  prototype lists.
+
+* There are three levels of visibility for a function or variable.  It can
+  be file-local, for which it must be marked with the keyword "static" at
+  the front of the declaration.  It can be visible to other object files in
+  the same module, for which it requires no extra keyword.  Or it can be
+  made available to the entire program (including other dynamically loaded
+  modules), for which it must be marked with the pseudo-keyword "mod_export"
+  at the front of the declaration.  Symbols should have the least visibility
+  possible.
+
+* Leave a blank line between the declarations and statements in a compound
+  statement, if both are present.  Use blank lines elsewhere to separate
+  groups of statements in the interests of clarity.  There should never
+  be two consecutive blank lines.
+
+* Each .c file *must* #include the .mdh header for the module it is a
+  part of and then its own .pro file (for local prototypes).  It may
+  also #include other system headers.  It *must not* #include any other
+  module's headers or any other .pro files.
+
+* The repository includes a `.editorconfig' file with whitespace/indent
+  control settings. Information about text editor plugins and this file
+  can be found at <http://editorconfig.org/>.
+
+
+Modules
+-------
+
+Modules have hierarchical names.  Name segments are separated by `/', and
+each segment consists of alphanumerics plus `_'.  Relative names are never
+used; the naming hierarchy is strictly for organisational convenience.
+
+Each module is described by a file with a name ending in `.mdd' somewhere
+under the Src directory.  This file is actually a shell script that will
+sourced when zsh is built. To describe the module it can/should set the
+following shell variables:
+
+  - name            name of the module
+  - link            `static', `dynamic' or `no', as described in INSTALL.
+		    In addition, the value `either' is allowed in the .mdd
+		    file, which will be converted by configure to `dynamic'
+		    if that is available, else `static'.
+		    May also be a command string, which will be run within
+		    configure and whose output is used to set the value
+		    of `link' in config.modules.  This allows a
+		    system-specific choice of modules.  For example,
+		    link='case $host in *-hpux*) echo dynamic; ;;
+		                        *) echo no; ;; esac'
+  - load            `yes' or `no': whether the shell should include hooks
+		    for loading the module automatically as necessary.
+		    (This corresponds to an `L' in xmods.conf in the
+		    old mechanism.)
+  - moddeps         modules on which this module depends (default none)
+  - nozshdep        non-empty indicates no dependence on the `zsh/main'
+                    pseudo-module
+  - alwayslink      if non-empty, always link the module into the executable
+  - autofeatures    features defined by the module for autoloading,
+                    a space-separated list.  The syntax for features is as
+                    for zmodload -F, e.g. b:mybin refers to the builtin
+                    mybin.  This replaces the previous mechanism with
+                    separate variables for builtins, conditions, math
+                    functions and parameters.  Note the features are only
+                    available in zsh's native mode, not in emulation modes.
+  - autofeatures_emu As autofeatures, but the features so presented are
+                    available in modes that are *not* zsh's native mode.
+		    The variable autofeatures must also be present.
+  - objects         .o files making up this module (*must* be defined)
+  - proto           .syms files for this module (default generated from $objects)
+  - headers         extra headers for this module (default none)
+  - hdrdeps         extra headers on which the .mdh depends (default none)
+  - otherincs       extra headers that are included indirectly (default none)
+
+Be sure to put the values in quotes. For further enlightenment have a look
+at the `mkmakemod.sh' script in the Src directory of the distribution.
+
+Modules have to define six functions which will be called automatically
+by the zsh core. The first one, named `setup_', should set up any data
+needed in the module, at least any data other modules may be interested
+in.
+
+The next pair are `features_' and `enables_' and deal with enabling module
+features.  Ensure you are familiar with the description of features under
+`zmodload -F'.
+
+The function features_ takes an argument `char ***featuresp'; *featuresp
+is to be set to a NULL-terminated array containing a list of all the
+features.  It should then return zero.  It may return one to indicate
+features are not supported, but this is not recommended.  The function
+featuresarray conveniently interrogates the module's feature structures
+for all standard features; space is left for abstract features at the end
+of the array and the names must be added by the module.  Note that heap
+memory should be used for this (zhalloc, etc.) as memory for the features
+array is not freed; note also the pointers for the abstract features are
+not initialised so setting them is mandatory any time there are any
+present.
+
+A structure "struct features" should be used to contain all standard
+features as well as the number of abstract features (those only understood
+by the module itself).  See below.
+
+enables_ takes an argument `int **enablesp'.  If *enablesp is NULL, it
+should be set to an array of the same length as *featuresp without the
+NULL, containing a 1 for every feature that is enabled and a zero for other
+feature.  By default features are disabled.  If *enablesp is not NULL, its
+values should be used to decide whether features are to be turned off.  It
+should return status 0 for success, 1 on a failure to alter a feature.  The
+function handlefeatures() conveniently handles all standard features
+present in the module's features structure; abstract features must be
+handled by the module (as with the features array, the area of the enables
+array for abstract features is not even initialised by the main shell).  As
+with `features_', any handling of the array by the module itself should take
+into account that the array will not be freed and any allocation should
+therefore be from heap memory.
+
+The functions `features_' and `enables_' can be called at any point
+after `setup_' has been called and before `cleanup_' is called.  In
+particular they can be called before or after `boot_'.
+
+The function named `boot_' should register function wrappers, hooks and
+anything that will be visible to the user that is not handled by features_
+and enables_ (so features should not be turned on here).  It will be called
+after the initial set of features have been set by calls to `features_'
+and `enables_'.
+
+The function named `cleanup_', is called when the user tries to unload
+a module and should de-register all features and hooks.  A call
+to setfeatures with the final argument NULL will remove all standard
+features present in the module's features structure.  Note that
+`cleanup_' is called whenever `setup_' succeeded, so that `cleanup_'
+must be prepared to handle any state resulting from a failed `boot_'
+or initial call to `features_'.  Note also that a return code of 1
+from `cleanup_' will result in the module not being unloaded, so
+usually `cleanup_' will return 0 even if it has to handle an unclean
+state; if it does return 1, it must be prepared to be called again
+in a future attempt to unload.
+
+The last function, `finish_' is called when the module is actually unloaded
+and should finalize all the data initialized in the `setup_'-function.
+However, `finish_' is called even if `setup_' failed, so it should
+not rely on the module successfully being set up.
+The state from `finish_' module is currently ignored; it is called
+too late to prevent the module from being unloaded.
+*Note* in addition to freeing memory, variables associated with allocated
+memory should be set to NULL or to indicate arrays are empty, etc.  It
+should not be assumed that the variables will automatically be zeroed if
+the module is reloaded (though some configurations may do this).
+
+In short, the `cleanup_'-function should undo what the `boot_'-function did
+(together with handling any residual effects of `enables_'), but should
+not rely on `boot_' having been successful, and the
+`finish_'-function should undo what the `setup_'-function did, but
+should not rely on `setup_' having been successful.
+
+All of these functions should return zero if they succeeded and
+non-zero otherwise.
+
+Features
+========
+
+Builtins, conditions, parameters (variables) and math functions
+are described as "features".  They should be made available to
+the shell by declaring a `struct feature' for each module.
+Below are descriptions of the individual features; first here
+is generic information.
+
+`struct feature' contains a pointer to the array that declares each
+feature, followed by the number of entries in the array.  The pointer
+can be NULL and the size zero for any feature that is not present in
+the module.  For example, to register only builtins in zsh and thereby
+make them visible to the user, the structure should contain
+"bintab" where the array is declared as an array of struct builtin,
+as discussed below:
+
+  static struct feature module_features = {
+    bintab, sizeof(bintab)/sizeof(*bintab),
+    NULL, 0, /* declare any conditions here */
+    NULL, 0, /* declare any parameters here */
+    NULL, 0, /* declare any math functions here */
+    0, /* number of abstract features */
+  }
+
+Within each individual table ("bintab", etc.), features should be listed
+in ASCII order as no further sorting is performed by the shell when
+features are listed.
+
+Abstract features are handled by the module; the number present
+in `struct features' is there to ensure the main shell allocated
+space in the features and enables array in the standard
+featuresarray() and handlefeatures() calls.  However, the inserting
+of names in the features array and the getting and setting of
+feature enables is left entirely to the module.  Note that abstract
+features should not contain a colon (to avoid clashes with the
+prefixes used in standard features).  It is recommended that
+only alphanumerics, - and _ be used in the names of abstract
+features, and - not be the first character (to avoid confusion
+with disabling features) but this is not required by the main shell.
+
+The features_ and enables_ functions for such a module will look
+like:
+
+  /**/
+  int
+  features_example(Module m, char ***features)
+  {
+     *features = featuresarray(m->nam, &module_features);
+     /* fill in any abstract features in (*features) here */
+     return 0;
+  }
+
+  /**/
+  int
+  enables_example(Module m, int **enables)
+  {
+    int ret;
+
+    ret = handlefeatures(m->nam, &module_features, enables);
+    /* handle any abstract features here */
+    ...
+    return ret;
+  }
+
+The functions shown take the name of the module, the set of features,
+
+
+To de-register builtins, pass the features structure to
+setfeatureenables with a NULL final value:
+
+  /**/
+  int
+  cleanup_example(Module m)
+  {
+    setfeatureenables(m->nam, &module_features, NULL);
+    ...
+  }
+
+
+Builtins
+--------
+
+Builtins are described in a table, for example:
+
+  static struct builtin bintab[] = {
+    BUILTIN("example", 0, bin_example, 0, -1, 0, "flags", NULL),
+  };
+
+Here `BUILTIN(...)' is a macro that simplifies the description. Its
+arguments are:
+  - the name of the builtin as a string
+  - optional flags (see BINF_* in zsh.h)
+  - the C-function implementing the builtin
+  - the minimum number of arguments the builtin needs
+  - the maximum number of arguments the builtin can handle or -1 if
+    the builtin can get any number of arguments
+  - an integer that is passed to the handler function and can be used
+    to distinguish builtins if the same C-function is used to
+    implement multiple builtins
+  - the options the builtin accepts, given as a string containing the
+    option characters (the above example makes the builtin accept the
+    options `f', `l', `a', `g', and `s').  Passing NULL here disables
+    all flag handling, i.e. even "--".  Each option letter may be
+    followed by one of ":" (argument must follow), "::" (optional
+    argument may follow), or ":%" (optional numeric argument).
+  - and finally a optional string containing option characters that
+    will always be reported as set when calling the C-function (this,
+    too, can be used when using one C-function to implement multiple
+    builtins)
+
+The definition of the handler function looks like:
+
+  /**/
+  static int
+  bin_example(char *nam, char **args, char *ops, int func)
+  {
+    ...
+  }
+
+The special comment /**/ is used by the zsh Makefile to generate the
+`*.pro' files. The arguments of the function are the number under
+which this function was invoked (the name of the builtin, but for
+functions that implement more than one builtin this information is
+needed). The second argument is the array of arguments *excluding* the
+options that were defined in the struct and which are handled by the
+calling code. These options are given as the third argument. It is an
+array of 256 characters in which the n'th element is non-zero if the
+option with ASCII-value n was set (i.e. you can easily test if an
+option was used by `if (ops['f'])' etc.). The last argument is the
+integer value from the table (the sixth argument to `BUILTIN(...)').
+The integer return value by the function is the value returned by the
+builtin in shell level.
+
+Conditions
+----------
+
+The definition of condition codes in modules is equally simple. First
+we need a table with the descriptions:
+
+  static struct conddef cotab[] = {
+    CONDDEF("len", 0, cond_p_len, 1, 2, 0),
+    CONDDEF("ex", CONDF_INFIX, cond_i_ex, 0, 0, 0),
+  };
+
+Again a macro is used, with the following arguments:
+
+  - the name of the condition code without the leading hyphen
+    (i.e. the example makes the condition codes `-len' and `-ex'
+    usable in `[[...]]' constructs)
+  - an optional flag which for now can only be CONDF_INFIX; if this is
+    given, an infix operator is created (i.e. the above makes
+    `[[ -len str ]]' and `[[ s1 -ex s2 ]]' available)
+  - the C-function implementing the conditional
+  - for non-infix condition codes the next two arguments give the
+    minimum and maximum number of string the conditional can handle
+    (i.e. `-len' can get one or two strings); as with builtins giving
+    -1 as the maximum number means that the conditional accepts any
+    number of strings
+  - finally as the last argument an integer that is passed to the
+    handler function that can be used to distinguish different
+    condition codes if the same C-function implements more than one of
+    them
+
+The definition for the function looks like:
+
+  /**/
+  static int
+  cond_p_len(char **a, int id)
+  {
+    ...
+  }
+
+The first argument is an array containing the strings (NULL-terminated
+like the array of arguments for builtins), the second argument is the
+integer value stored in the table (the last argument to `CONDDEF(...)').
+The value returned by the function should be non-zero if the condition
+is true and zero otherwise.
+
+Note that no preprocessing is done on the strings. This means that
+no substitutions are performed on them and that they will be
+tokenized. There are three helper functions available:
+
+  - char *cond_str(args, num, raw)
+    The first argument is the array of strings the handler function
+    got as an argument and the second one is an index into this array.
+    The return value is the num'th string from the array with
+    substitutions performed. If the last argument is zero, the string
+    will also be untokenized.
+  - long cond_val(args, num)
+    The arguments are the same as for cond_str(). The return value is
+    the result of the mathematical evaluation of the num'th string
+    form the array.
+  - int cond_match(args, num, str)
+    Again, the first two arguments are the same as for the other
+    functions. The third argument is any string. The result of the
+    function is non-zero if the num'th string from the array taken
+    as a glob pattern matches the given string.
+
+Parameters
+----------
+
+For defining parameters, a module can call `createparam()' directly or
+use a table to describe them, e.g.:
+
+  static struct paramdef patab[] = {
+    PARAMDEF("foo", PM_INTEGER, NULL, foo_gsu),
+    INTPARAMDEF("exint", &intparam),
+    STRPARAMDEF("exstr", &strparam),
+    ARRPARAMDEF("exarr", &arrparam),
+  };
+
+There are four macros used:
+
+  - PARAMDEF() gets as arguments:
+    - the name of the parameter
+    - the parameter flags to set for it (from the PM_* flags defined
+      in zsh.h)
+    - optionally a pointer to the value of the parameter
+    - a GSU pointer to the three functions that will be used to get
+      the value of the parameter, store a value in the parameter,
+      and unset the parameter
+  - the other macros provide simple ways to define the most common
+    types of parameters; they get the name of the parameter and a
+    pointer to a variable holding the value as arguments; they are
+    used to define integer-, scalar-, and array-parameters, so for
+    those macros the pointer to the parameter value should be the
+    address of a variable of type `long', `char *',or `char **',
+    respectively, pointing in turn to the desired value.
+  - Parameters used in a module that don't have special behaviour
+    shouldn't be declared in this way, instead they should just be
+    created in `boot_'  with the standard parameter functions.
+
+GSU (get, set, unset) structures are defined in Src/zsh.h for each of
+the parameter types scalar, integer, float, array, and hash.
+
+For a description of how to write functions for getting or setting the
+value of parameters, or how to write a function to unset a parameter,
+see the description of the following functions in the `params.c' file:
+
+  - `intvargetfn()' and `intvarsetfn()' for integer parameters
+  - `strvargetfn()' and `strvarsetfn()' for scalar parameters
+  - `arrvargetfn()' and `arrvarsetfn()' for array parameters
+  - `stdunsetfn()' for unsetting parameters
+
+Note that if one defines parameters using the last two macros (for
+scalars and arrays), the variable holding the value should be
+initialized to either `NULL' or to a piece of memory created with
+`zalloc()'. But this memory should *not* be freed in the
+finish-function of the module because that will be taken care of by
+the `deleteparamdefs()' function described below.
+
+It is also possible to declare special parameters using
+the macro SPECIALPMDEF().  More care is required in this case.
+See, for example, many of the definitions in Src/Modules/parameter.c.
+
+Math functions
+--------------
+
+Modules can also define math functions. Again, they are described
+using a table:
+
+  static struct mathfunc mftab[] = {
+    NUMMATHFUNC("sum", math_sum, 1, -1, 0),
+    STRMATHFUNC("length", math_length, 0),
+  };
+
+The `NUMMATHFUNC()' macro defines a math function that gets an array
+of mnumbers (the zsh type for representing values in arithmetic
+expressions) taken from the string in parentheses at the function
+call. Its arguments are the name of the function, the C-function
+implementing it, the minimum and maximum number of arguments (as
+usual, the later may be `-1' to specify that the function accepts any
+number of arguments), and finally an integer that is given unchanged
+to the C-function (to be able to implement multiple math functions in
+one C-function).
+
+The `STRMATHFUNC()' macro defines a math function that gets the string
+in parentheses at the call as one string argument (without the
+parentheses). The arguments are the name of the function, the
+C-function, and an integer used like the last argument of
+`NUMMATHFUNC()'.
+
+The C-functions implementing the math functions look like this:
+
+  /**/
+  static mnumber
+  math_sum(char *name, int argc, mnumber *argv, int id)
+  {
+    ...
+  }
+
+  /**/
+  static mnumber
+  math_length(char *name, char *arg, int id)
+  {
+    ...
+  }
+
+Functions defined with `NUMMATHFUNC' get the name of the function, the
+number of numeric arguments, an array with these arguments, and the
+last argument from the macro-call. Functions defined with
+`STRMATHFUNC' get the name of the function, the string between the
+parentheses at the call, and the last argument from the macro-call.
+
+Both types of functions return an mnumber which is a discriminated
+union looking like:
+
+  typedef struct {
+    union {
+      zlong l;
+      double d;
+    } u;
+    int type;
+  } mnumber;
+
+The `type' field should be set to `MN_INTEGER' or `MN_FLOAT' and
+depending on its value either `u.l' or `u.d' contains the value.
+
+Widgets
+-------
+
+As of this writing, widgets are not managed by the features mechanism.
+Modules can add builtin widgets by calling `addzlefunction' as defined
+in Src/Zle/zle_thingy.c.  Typically this is called from the `boot_'
+routine.  Any widgets so added should be removed by `deletezlefunction'
+called from the `cleanup_' routine.
+
+Keymaps
+-------
+Keymaps are created with `newkeymap' and exposed for use with bindkey
+by `linkkeymap', both defined in Src/Zle/zle_keymap.c.  Typically the
+same name is used both to create and link the keymap.  As with widgets,
+there is currently no features mechanism for keymaps, and they should
+be initialized in the `boot_' function.  In `cleanup_', first remove
+linkage with `unlinkkeymap' and then discard with `deletehashtable'.
+
+Hooks
+-----
+
+Modules can also define function hooks. Other modules can then add
+functions to these hooks to make the first module call these functions
+instead of the default.  These are not handled by the features
+mechanism as they are not directly visible to the user.
+
+Again, an array is used to define hooks:
+
+  static struct hookdef foohooks[] = {
+    HOOKDEF("foo", foofunc, 0),
+  };
+
+The first argument of the macro is the name of the hook. This name
+is used whenever the hook is used. The second argument is the default
+function for the hook or NULL if no default function exists. The
+last argument is used to define flags for the hook. Currently only one
+such flag is defined: `HOOKF_ALL'. If this flag is given and more than
+one function was added to the hook, all functions will be called
+(including the default function). Otherwise only the last function
+added will be called.
+
+The functions that can be used as default functions or that can be
+added to a hook have to be defined like:
+
+  /**/
+  static int
+  foofunc(Hookdef h, void *data)
+  {
+    ...
+  }
+
+The first argument is a pointer to the struct defining the hook. The
+second argument is an arbitrary pointer that is given to the function
+used to invoke hooks (see below).
+
+The functions to register and de-register hooks look like those for
+the other things that can be defined by modules:
+
+  /**/
+  int
+  boot_(Module m)
+  {
+    int ret;
+
+    ret = addhookdefs(m->nam, foohooks, sizeof(foohooks)/sizeof(*foohooks))
+    ...
+  }
+  ...
+  /**/
+  int
+  cleanup_(Module m)
+  {
+    deletehookdefs(m->nam, foohooks, sizeof(foohooks)/sizeof(*foohooks));
+    ...
+  }
+
+Modules that define hooks can invoke the function(s) registered for
+them by calling the function `runhook(name, data)'. The first argument
+is the name of the hook and the second one is the pointer given to the
+hook functions as their second argument. Hooks that have the `HOOKF_ALL'
+flag call all function defined for them until one returns non-zero.
+The return value of `runhook()' is the return value of the last hook
+function called or zero if none was called.
+
+To add a function to a hook, the function `addhookfunc(name, func)' is
+called with the name of the hook and a hook function as arguments.
+Deleting them is done by calling `deletehookfunc(name, func)' with the
+same arguments as for the corresponding call to `addhookfunc()'.
+
+Alternative forms of the last three function are provided for hooks
+that are changed or called very often. These functions,
+`runhookdef(def, data)', `addhookdeffunc(def, func)', and
+`deletehookdeffunc(def, func)' get a pointer to the `hookdef'
+structure defining the hook instead of the name and otherwise behave
+like their counterparts.
+
+The following hooks are defined by the standard set of modules and may be
+referenced by other modules.  Each has a corresponding macro name that
+points into the definition structure, to avoid repeating the hook names
+as strings.
+
+   zsh/main
+     after_trap           AFTERTRAPHOOK
+     before_trap          BEFORETRAPHOOK
+     exit                 EXITHOOK
+
+   zsh/complete
+     compctl_make       *  COMPCTLMAKEHOOK
+     compctl_cleanup    *  COMPCTLCLEANUPHOOK
+     insert_match          INSERTMATCHHOOK
+     comp_list_matches  *  COMPLISTMATCHESHOOK
+     menu_start            MENUSTARTHOOK
+
+   zsh/zle
+     before_complete    *  BEFORECOMPHOOK
+     complete           *  COMPLETEHOOK
+     after_complete     *  AFTERCOMPHOOK
+     accept_completion  *  ACCEPTCOMPHOOK
+     list_matches       *  LISTMATCHESHOOK
+     invalidate_list    *  INVALIDATELISTHOOK
+
+Hooks marked with "*" do not use the HOOKF_ALL flag and so are replaced if
+another module adds a function to the hook.  Use with caution.
+
+Wrappers
+--------
+
+Finally, modules can define wrapper functions.  These functions are
+called whenever a shell function is to be executed.  Again, they
+are not handled by the features mechanism as they are not visible
+to the user.
+
+The definition is simple:
+
+  static struct funcwrap wrapper[] = {
+    WRAPDEF(ex_wrapper),
+  };
+
+The macro `WRAPDEF(...)' gets the C-function as its only argument.
+The `boot_()' function must install wrappers by calling `addwrapper()'
+like so:
+
+  /**/
+  int
+  boot_(Module m)
+  {
+    int ret;
+
+    ret = addwrapper(m, wrapper);
+    ...
+  }
+
+The `cleanup_()' function should then remove the wrappers again:
+
+  /**/
+  int
+  cleanup_(Module m)
+  {
+    deletewrapper(m, wrapper);
+    ...
+  }
+
+The wrapper function should be defined like:
+
+  /**/
+  static int
+  ex_wrapper(Eprog prog, FuncWrap w, char *name)
+  {
+    ...
+    runshfunc(prog, w, name);
+    ...
+    return 0;
+  }
+
+The first two arguments should only be used to pass them to
+`runshfunc()' which will execute the shell function. The last argument
+is the name of the function to be executed. The arguments passed to
+the function can be accessed via the global variable `pparams' (a
+NULL-terminated array of strings).
+
+The return value of the wrapper function should be zero if it calls
+`runshfunc()' itself and non-zero otherwise. This can be used for
+wrapper functions that only need to run under certain conditions or
+that don't need to clean anything up after the shell function has
+finished:
+
+  /**/
+  static int
+  ex_wrapper(Eprog prog, FuncWrap w, char *name)
+  {
+    if (wrapper_need_to_run) {
+      ...
+      runshfunc(prog, w, name);
+      ...
+      return 0;
+    }
+    return 1;
+  }
+
+Inside these wrapper functions the global variable `sfcontext' will be
+set to a clue indicating the circumstances under which the shell
+function was called. It can have any of the following values:
+
+  - SFC_DIRECT:   the function was invoked directly by the user
+  - SFC_SIGNAL:   the function was invoked as a signal handler
+  - SFC_HOOK:     the function was automatically invoked as one of the
+                  special functions known by the shell (like `chpwd')
+  - SFC_WIDGET:   the function was called from the zsh line editor as a
+                  user-defined widget
+  - SFC_COMPLETE: the function was called from the completion code
+                  (e.g. with `compctl -K func')
+
+If a module invokes a shell function (e.g. as a hook function), the
+value of this variable should only be changed temporarily and restored
+to its previous value after the shell function has finished.
+
+There is a problem when the user tries to unload a module that has
+defined wrappers from a shell function. In this case the module can't
+be unloaded immediately since the wrapper function is still on the
+call stack. The zsh code delays unloading modules until all wrappers
+from them have finished. To hide this from the user, the module's
+cleanup function is run immediately so that all builtins, condition
+codes, and wrapper function defined by the module are
+de-registered. But if there is some module-global state that has to be
+finalized (e.g. some memory that has to be freed) and that is used by
+the wrapper functions finalizing this data in the cleanup function
+won't work.
+
+This is why there are two functions each for the initialization and
+finalization of modules. The `boot'- and `cleanup'-functions are run
+whenever the user calls `zmodload' or `zmodload -u' and should only
+register or de-register the module's interface that is visible to the
+user. Anything else should be done in the `setup'- and
+`finish'-functions. Otherwise modules that other modules depend upon
+may destroy their state too early and wrapper functions in the latter
+modules may stop working since the state they use is already destroyed.
+
+Documentation
+-------------
+
+* Edit only the .yo files.  All other formats (man pages, TeXinfo, HTML,
+  etc.) are automatically generated from the yodl source.
+
+* Always use the correct markup.  em() is used for emphasis, and bf()
+  for citations.  tt() marks text that is literal input to or output
+  from the shell.  var() marks metasyntactic variables.
+
+* In addition to appropriate markup, always use quotes (`') where
+  appropriate.  Specifically, use quotes to mark text that is not a part
+  of the actual text of the documentation (i.e., that it is being quoted).
+  In principle, all combinations of quotes and markup are possible,
+  because the purposes of the two devices are completely orthogonal.
+  For example,
+
+      Type `tt(xyzzy)' to let zsh know you have played tt(advent).
+      Saying `plugh' aloud doesn't have much effect, however.
+
+  In this case, "zsh" is normal text (a name), "advent" is a command name
+  occurring in the main text, "plugh" is a normal word that is being quoted
+  (it's the user that says `plugh', not the documentation), and "xyzzy"
+  is some text to be typed literally that is being quoted.
+
+* For multiple-line pieces of text that should not be filled, there are
+  various models.
+  - If the text is pure example, i.e. with no metasyntactic variables etc.,
+    it should be included within `example(...)'.  The text will be
+    indented, will not be filled and will be put into a fixed width font.
+  - If the text includes mixed fonts, it should be included within
+    `indent(...)'.  The text is now filled unless `nofill(...)' is also
+    used, and explicit font-changing commands are required inside.
+  - If the text appears inside some other format, such as for example the
+    `item()' list structure, then the instruction `nofill(...)', which
+    simply turns off filling should be used; as with `indent(...)',
+    explicit font changing commands are required.  This can be used
+    without `indent()' when no indentation is required, e.g. if the
+    accumulated indentation would otherwise be too long.
+  All the above should appear on their own, separated by newlines from the
+  surrounding text.  No extra newlines after the opening or before the
+  closing parenthesis are required.
+
+A syntax highlighting file for Vim is included, just source tt(Doc/Zsh/.vimrc)
+before editing one of the Doc/Zsh/*.yo files.
+
+Module names
+------------
+
+Modules have hierarchical names.  Name segments are separated by `/', and
+each segment consists of alphanumerics plus `_'.  Relative names are never
+used; the naming hierarchy is strictly for organisational convenience.
+
+Top-level name segments should be organisational identifiers, assigned
+by the Zsh Development Group and recorded here:
+
+top-level identifier  organisation
+--------------------  ------------
+x_*                   reserved for private experimental use
+zsh                   The Zsh Development Group (contact: <coordinator@zsh.org>)
+
+Below the top level, naming authority is delegated.
+
+
+Distribution of files
+---------------------
+
+zsh is distributed in two parts: a "src" distribution containing all
+the source files (roughly, but not exactly, corresponding to the git
+tree), and a "doc" distribution containing some pre-built files from
+the documentation directory.  All the files in the "doc" distribution
+may be generated from files in the "src" distribution with appropriate
+freely available tools.
+
+To indicate which files should be distributed, each directory in the git
+tree includes a file .distfiles that sets any number of a set of Bourne
+shell (scalar) parameters.  The value of the parameter is expanded as a
+set of standard command line arguments.  Apart from DISTFILES_NOT, which
+must be an explicit list of files separated by whitespace, basic
+globbing is allowed in the values.
+
+Because of the way DISTFILES_SRC is constructed it is only possible
+to make a release from a git checkout.
+
+The following parameters are currently used:
+
+- DISTFILES_SRC is a list of files from the directory for the "src"
+  distribution.  However, if the file .distfiles is present in
+  a directory, all files known to git will be added to DISTFILES_SRC
+  except for files listed explicitly in DISTFILES_NOT.
+
+- DISTFILES_DOC is a list of files from the directory for the "doc"
+  distribution.
+
+- DISTFILES_NOT is a list of files that will not be included in a
+  distribution even though they are present in the git tree.
+
+---------------------
+Completion Style Guide
+---------------------
+
+Conventions
+-----------
+
+There are a number of conventions related to writing completion
+functions and it is useful if they are followed for functions which are
+to be distributed as part of zsh to maintain a level of consistency.
+
+Coding style:
+
+* Use two spaces for indentation and four for continuation lines except
+  where there are many continuation lines such as `_arguments' or
+  `_values' specs. Lines tend to be longer than in C code so less
+  indentation makes sense.
+
+* For constructs such as `if' and `while', the `then' or `do' should be
+  on the end of the line after a semi-colon and space unless there
+  isn't room for it (see the next point) in which case put it on the
+  next line un-indented.
+
+* Please try not to use lines longer than 79 characters. Don't worry
+  about breaking long `_arguments' or `_values' specs though.
+
+* Never use alternative, unusual, or optional syntax in completion
+  functions (or any other shell code distributed with zsh). In other
+  words, do NOT use the following:
+
+    # Short loops
+    for x in $y; myfunc $x
+
+    # Alternative forms
+    if { [[ $x == $y ]] } {
+      myfunc $x
+    }
+    foreach x in $y {
+      myfunc $x
+    }
+
+    # Weird tricks
+    () for 1 {
+      myfunc $1
+    } $x
+
+Descriptions:
+
+Descriptions should not have a trailing full stop and initial capital
+letter. Though capitals are fine where you have an acronym which
+generally appears in uppercase. Prefer the use of the imperative
+mood as it is shorter and more natural in the absence of an explicit
+subject for a sentence, e.g. "recurse subdirectories" instead of
+"recurses subdirectories", as if orders are being given.
+
+It is a good idea to copy descriptions from the command's man page or
+--help output. If you do this, be careful that the description still
+makes sense. Some commands have a description like `print help message
+(this one) and exit' for --help but the `(this one)' part no longer
+makes sense. A less obvious example is where the help output looks like:
+  -X, --encoding=NAME        use input encoding NAME
+copying this description exactly would result in completion output that
+looks like this:
+  --encoding   -X    -- use input encoding NAME
+In the help output, it is much clearer what is meant by `NAME' because
+it appears after `--encoding=' but it doesn't in the completion
+listing. So it is better to use a description of this form:
+  --encoding   -X    -- use specified input encoding
+The word specify is commonly used with options that take arguments.
+
+Another example of where --help output may not be suitable unedited is
+where default values or units are indicated. Do not put them in
+per-match descriptions; they are better placed in the group
+descriptions. Put the units in parentheses after the description. So
+for example, do not use:
+  '--timeout[specify connection timeout in milliseconds]:timeout'
+but use:
+  '--timeout[specify connection timeout]:timeout (ms)'
+To indicate a default value, use square brackets:
+  '--timeout[specify connection timeout]:timeout (ms) [5000]'
+These two conventions can be used together or individually as appropriate.
+Alternatively the `_numbers' function may be used:
+  '--timeout[specify connection timeout]: :_numbers -u ms -d 5000 timeout'
+
+Group descriptions should be singular because only one thing is being
+completed even though many may be listed. This applies even where you
+complete a list of the things. Tags, functions for completing types of
+things (such as _files), and states should have plural names.
+
+Group descriptions can be omitted where they are handled by a helper/type
+function. For example, the `file' description in the following line is
+unnecessary, as `_files' provides it by default:
+  '--import=[import specified file]:file:_files'
+In this case, the following syntax can be used instead:
+  '--import=[import specified file]: :_files'
+Of course, it may make sense to add an explicit description which is
+more specific than the default:
+  '--config=[use specified config file]:config file:_files'
+
+Similarly, group descriptions can and should be omitted where a `->state'
+is involved, as the description in the argument spec is always ignored
+in these cases. For example, instead of:
+  '--config=[use specified config file]:config file:->config-files'
+use:
+  '--config=[use specified config file]: :->config-files'
+Setting an explicit description here constitutes (a small amount of)
+unnecessary noise, and may be misleading to other developers who update
+the function.
+
+In a function, allow any descriptions passed as an argument to override
+the default you define. For example:
+  _wanted directories expl directory _files -/ "$@" -
+The "$@" adds descriptions passed as parameters and the trailing `-'
+tells _wanted where to put options specifying the `directory' description.
+
+Where two matches have identical meaning, give them the same
+description so that the completion system can group them together.
+Conventionally a brace expansion of this form is used:
+  '(--context -C)'{--context=,-C-}'[specify lines of context]:lines'
+You won't need the exclusion list if the option can be specified
+multiple times. It can also be useful to use the same description for
+matches which are completely opposite in their meaning if it shortens
+the completion listing provided that the names of the matches makes it
+clear what their effect is.
+
+Command Versions:
+
+In most cases multiple versions (releases) of commands are not
+supported. The functions are merely updated to reflect the latest stable
+version. Exceptions to this can be made where are particular version
+continues to be commonly distributed. Where there is more than one variant
+of the same command however (e.g., the command takes different options
+on different platforms), the separate variants should be supported.
+
+Contexts, tags and all that
+---------------------------
+
+The completion system keeps track of the current context in the
+parameter `curcontext'. Its content is the hierarchical name for the
+current context sans the `:completion:' and the last colon and the tag
+currently tried. The tags represent different types of matches. So,
+whenever you are about to add matches, you should use a tag for them
+and test if the user wants this type of matches to be generated.
+However, this only really needs to be done if no other function in the
+call chain has tested that already or if you can offer different types
+of matches or if you can handle tag aliases in some sophisticated way.
+
+Most of the utility functions do the testing themselves, so you don't
+have to worry about that at all. For example if you are adding matches
+with `_files', `_hosts' or functions like these, you can just call
+them and they do the tests needed and the loops over the tag aliases.
+The functions `_arguments' and `_values' do that too, but there is a
+small difference. These functions effectively change the context
+name and if you are using the `->state' form for actions, this changed
+name component has to be reported back to the function calling
+`_arguments' or `_values'. This is done with the parameter `context',
+so you have to make that local in the calling function in the same way
+as you have to make local `line', `state', and `{opt,val}_args'. This
+parameter `context' should then be used when you start adding matches
+by giving it to functions like `_tags' via the `-C' options, as in:
+
+  local context ...
+  ...
+  _arguments ... '-foo:foo:->foo' && return 0
+  ...
+  if [[ "$state" = foo ]]; then
+    _tags -C "$context" ...
+    ...
+  fi
+
+This will put the context name given in the argument field of the
+`curcontext' parameter and this context will then be used to look
+up styles for the tags.
+
+But since this is often used, `_arguments' and `_values' have support
+to make your life easier in such cases. With the `-C' option, these
+functions set the parameter `curcontext', thus modifying the globally
+used hierarchical context name. This means, that you have to make that
+local, but then you don't have to worry about giving the context name
+reported back to functions you call. E.g.:
+
+  local curcontext="$curcontext" ...
+  ...
+  _arguments -C ... 'foo:foo:->foo' && return 0
+  ...
+  if [[ "$state" = foo ]]; then
+    _tags ...
+    ...
+  fi
+
+In this case the parameter `context' is not set, so you don't have to
+make that local. But make sure that `curcontext' is local so that the
+value changed by `_arguments' and `_values' is only used in your
+function (and make sure to initialise it to its old value as in the
+example).
+
+All this only works if the specifications given to `_arguments' define
+options and arguments that are completely separate. If there is more
+than one `->state' action and more than one of them might be needed
+for the same word, you'll have to use a loop:
+
+  local state context line i expl ret=1
+  ...
+  _arguments \
+      '::arg1:->arg1' \
+      '*:args:->rest' && return 0
+
+  while (( $#state )); do
+    case "$state[1]" in
+    arg1) _wanted -C "$context[1]" foo expl 'foo' compadd - foo1 foo2 && ret=0;;
+    rest) _wanted -C "$context[1]" bar expl 'bar' compadd - bar1 bar2 && ret=0;;
+    esac
+    shift 1 state
+    shift 1 context
+  done
+
+  return ret
+
+As you can see, `state' and `context' are really arrays. In this
+example, completion for the first argument has to complete both `foo's
+and `bar's.
+
+Then, before adding the matches, see if matches of that type are
+requested by the user in the current context. If you will add only one
+type of matches, this is very simple. You can use the function
+`_wanted' for this. Well, you can often use it, that is. Use it as in:
+
+  _wanted names expl 'name' compadd - alice bob
+
+This is like testing if the tag `names' is requested by the user and
+then calling `_all_labels' with the same arguments.
+
+The `_all_labels' function implements the loop over the tag aliases and
+handles the user-defined description, using (in the example) the
+parameter `expl' to store options to give to the command. These options
+are inserted into the command line either directly before a single
+hyphen if there is such an argument or after the first word if there
+is no single hyphen. Since using `_all_labels' is so much more convenient
+than writing the loop with the `_next_label' function (see below), but
+some functions called to generate matches don't accept a single hyphen
+as an argument anywhere but want the options built as their last arguments,
+`_all_labels' will *replace* the hyphen with the options if the hyphen is
+the last argument. A good example for such a function is
+`_combination' which can be called like:
+
+  _all_labels foo expl 'descr...' _combination ... -
+
+And the `-' will be replaced by the options that are to be given to
+`compadd'.
+
+Note that you can also give the `-J' and `-V' options with the
+optional `1' or `2' preceding them supported by `_description':
+
+  _wanted -2V names expl 'name' compadd ...
+
+In some cases one needs to call multiple functions or call `compadd'
+more than once to generate the matches. In such a case one needs to
+implement the loop over the tag aliases directly. This is done with the
+`_next_label' function. Like this:
+
+  while _next_label names expl 'name'; do
+    compadd "$expl[@]" - alice bob && ret=0
+    _other_names "$expl[@]" && ret=0
+  done
+  return ret
+
+Simple enough, I hope. But `_next_label' can do some more: utility
+functions normally accept options which are then given to `compadd'.
+Since these may contain options for the description and `_next_label' may
+generate such options, too, it isn't entirely trivial to decide which
+of these options should take precedence. But `_next_label' can do the work
+for you here. All you have to do is to give the options your utility
+function gets to `_next_label', as in:
+
+  while _next_label names expl 'name' "$@"; do
+    compadd "$expl[@]" - alice bob
+    ...
+  done
+
+That's all. Note that the positional argument "$@" are *not* given to
+`compadd'. They will be stuffed into the `expl' array by `_next_label'.
+
+The most complicated case is where you can offer multiple types of
+matches. In this case the user should be able to say which types he
+wants to see at all and of those which he wants to see he should be
+able to say which types should be tried first. The generic solution
+for this uses `_tags' and `_requested':
+
+  local expl ret=1
+
+  _tags friends users hosts
+
+  while _tags; do
+    _requested friends expl friend compadd alice bob && ret=0
+    _requested users && _users && ret=0
+    _requested hosts && _hosts && ret=0
+
+    (( ret )) || break   # leave the loop if matches were added
+  done
+
+`_tags' with tags as arguments registers those tags and checks which
+of them the user wants to see and in which order the tags are to be
+tried. This means that internally these tags are stored in multiple
+sets. The types of matches represented by the tags from the first set
+should be tried first. If that generates no matches, the second set is
+tried and so on. `_tags' without arguments just makes the next set be
+tried (on the first call it makes the first set be used). The function
+`_requested' then tests if the tag given as its first argument is in
+the set currently used and returns zero if it is,  i.e. if matches of
+that type should be added now. The arguments accepted by `_requested'
+are the same as for `_wanted'. I.e. you can call it with only the tag
+to test, with the `tag array description' or with that plus the
+command to execute.
+
+In some cases (like the `users' and `hosts' tags in the example) you
+don't need do the loop over the tag aliases yourself, because the
+utility functions like `_users' and `_hosts' do it automatically.
+
+This looks good already. But in many cases such as this one you can
+also use the function `_alternative' which simply implements a loop
+like the one above. It gets arguments of the form `tag:descr:action'.
+E.g.:
+
+  _alternative \
+      'friends:friend:(alice bob)' \
+      'users:: _users' \
+      'hosts:: _hosts'
+
+Which does the same as the previous example. (Note the empty
+descriptions in the last two arguments -- the actions start with a
+space so that they are executed without giving the description
+build by `_alternative', i.e. we just use the description added by
+`_users' and `_hosts').
+
+In cases where you have to keep track of the context yourself, you can
+give the sub-context you want to use to `_tags', `_wanted' and
+`_alternative' with the `-C' option as described above. You don't need
+to give it to `_requested' -- that function will work on the context
+used by the corresponding call to `_tags' automatically.
+
+For the names of the tags: choose simple (short, if at all possible)
+names in plural. Also, first have a look at the tag names already used
+by other functions and if any of these names seem sensible for the
+type of matches you are about to add, then use those names. This will
+allow users to define styles for certain types of matches independent
+of the place where they are added.
+
+One final comment about when to use your own argument-contexts: do
+this when the command you are writing a completion function for has
+different `modes'. E.g. if it accepts host names after a `-h' option
+and users or hosts after `-u' and for some reason you can't use
+`_arguments' to do the work for you, then use context names as in:
+
+  case "$1" in
+  -h)
+    _tags -C -h hosts && _hosts && ret=0
+    ;;
+  -u)
+    _alternative -C -u 'users:: _users' 'hosts:: _hosts' && ret=0
+    ;;
+  esac
+
+
+Styles
+------
+
+Users can associate patterns for hierarchical context names with
+certain styles using the `zstyle' builtin. The completion code
+should then use these styles to decide how matches should be added and
+to get user-configured values. This, too, is done using the builtin
+`zstyle'.
+
+Basically styles map names to a bunch of strings (the `value'). In
+many cases you want to treat the value as a boolean, so let's start
+with that. To test if, for example, the style `verbose' is set for
+the tag `options' in the context you are currently in, you can just do:
+
+  if zstyle -t ":completion:${curcontext}:options" verbose; then
+    # yes, it is set...
+  fi
+
+I.e. with the -t option and two arguments `zstyle' takes the first one
+as a context and the second one as a style name and returns zero if that
+style has the boolean value `true'. Internally it checks if the style
+is set to one of `yes', `true', `on', or `1' and interprets that as
+`true' and every other value as `false'.
+
+For more complicated styles for which you want to test if the value
+matches a certain pattern, you can use `zstyle' with the -m option and
+three arguments:
+
+  if zstyle -m ":completion:${curcontext}:foo" bar '*baz*'; then
+    ...
+  fi
+
+This tests if the value of the style `bar' for the tag `foo' matches
+the pattern `*baz*' and returns zero if it does.
+
+If you just want to see if one of the strings in the value is exactly
+equal to any of a number of a strings, you can use the -t option and
+give the strings after the style name:
+
+  if zstyle -t ":completion:${curcontext}:foo" bar str1 str2; then
+    ...
+  fi
+
+But sometimes you want to actually get the value stored for a certain
+style instead of just testing it. For this `zstyle' supports four
+options: `-b', `-s', `-a', and `-h'. After these options, three
+arguments are expected, the context, the style, and a parameter name.
+The parameter will then be set to the value of the style and the option
+says how the strings stored as a value will be stored in the
+parameter:
+
+  - `-b': the parameter will be set to a either `yes' or `no'
+  - `-s': the parameter will be set to all strings in the value
+          concatenated (separated by spaces) to one string
+  - `-a': the parameter will be set to an array containing the strings
+          from the value as elements
+  - `-h': the parameter will be set to an association with the strings
+          from the value being interpreted alternatingly as keys and
+	  values
+
+Some random comments about style names. Use the ones already in use if
+possible. Especially, use the `verbose' style if you can add
+matches in a simple and a verbose way. Use the verbose form only if
+the `verbose' style is `true' for the current context. Also, if
+the matches you want to add have a common prefix which is somehow
+special, use the `prefix-needed' and `prefix-hidden' styles. The first
+one says if the user has to give the prefix on the line to make these
+matches be added and the second one says if the prefix should be
+visible in the list.
+
+And finally, if you need a style whose value can sensibly be
+interpreted as a list of words, use array or association styles with
+the `-a' or `-h' options to `zstyle'. Otherwise you should only make
+sure that an empty value for a style is treated in the same way as if
+the style wasn't set at all (this is used elsewhere and we want to
+keep things consistent).
+
+
+Descriptions
+------------
+
+Always use descriptions. This is important. Really. *Always* use
+descriptions. If you have just written down a `compadd' without a
+"$expl[@]" (or equivalent), you have just made an error. Even in
+helper functions where you use a "$@": if you can't be sure that there
+is a description in the arguments, add one. You can (and, in most
+cases, should) then give the description you generated after the
+"$@". This makes sure that the, probably more specific, description
+given by the calling function takes precedence over the generic one
+you have just generated.
+
+And it really isn't that complicated, is it? Think about a string
+people might want to see above the matches (in singular -- that's used
+throughout the completion system) and do:
+
+  local expl
+
+  _description tag expl <descr>
+  compadd "$expl@]" - <matches ...>
+
+Note that this function also accepts `-V' and `-J', optionally (in the
+same word) preceded by `1' or `2' to describe the type of group you
+want to use. For example:
+
+  _description tag expl '...'
+  compadd "$expl[@]" -1V foo - ...    # THIS IS WRONG!!!
+
+is *not* the right way to use a unsorted group. Instead do:
+
+  _description -1V tag expl '...'
+  compadd "$expl[@]" - ...
+
+and everything will work fine.
+
+Also, if you are about to add multiple different types of matches, use
+multiple calls to `_description' and add them with multiple calls to
+`compadd'. But in almost all cases you should then add them using
+different tags anyway, so, see above.
+
+And since a tag directly corresponds to a group of matches, you'll
+often be using the tags function that allows you to give the
+explanation to the same function that is used to test if the tags are
+requested (again: see above). Just as a reminder:
+
+  _wanted [ -[1,2]V | -[1,2]J ] <tag> expl <descr> <cmd> ...
+
+and
+
+  _requested [ -[1,2]V | -[1,2]J ] <tag> expl <descr> [ <cmd> ... ]
+
+is all you need to make your function work correctly with both tags
+and description at the same time.
+
+
+Caching
+-------
+
+Where generating matches takes a long time it can be useful to save
+the list for reuse in subsequent completion attempts.  If you use
+a global variable, prefix the name of it with `_cache_' and explicitly
+declare it with `typeset -g'.  In many cases this is sufficient but
+where generating matches takes especially long or the list is
+especially large, use the `_store_cache` mechanism to allow for a
+persistent cache.  When caching matches, also consider whether
+generated matches might be affected by style settings for limited
+contexts and adapt to allow such configuration to work.
+
+
+Misc. remarks
+-------------
+
+1)  Supply match specifications to `compadd' if there are sensible ones.
+2)  Use helper functions that do option completion for you (like
+    `_arguments' and `_values') -- it will make your life much
+    easier.
+3)  Use helper functions like `_users' and `_groups' instead of some ad hoc
+    mechanisms to generate such information. This ensures that users can
+    change the way these things will be completed everywhere by just using
+    their own implementations for these functions.
+4)  Make sure that the return value of your functions is correct: zero
+    if matches were added and non-zero if no matches were found.
+    In some cases you'll need to test the value of `$compstate[nmatches]'
+    for this. This should always be done by first saving the old value
+    (`local nm="$compstate[nmatches]"') and later comparing this with
+    the current value after all matches have been added (e.g. by
+    writing `[[ nm -ne compstate[nmatches] ]]' at the end of your
+    function).
+    This guarantees that your functions will be re-usable because calling
+    functions may rely on the correct return value.
+5)  When writing helper functions that generate matches, the arguments
+    of these should be given unchanged to `compadd' (if they are not
+    used by the helper function itself).
+6)  When matches with a common prefix such as option names are generated,
+    add them *with* the prefix (like `-', `+', or `--' for options).
+    Then check the `prefix-needed' style to see if the matches are to be
+    added when the prefix is not on the line and use the `prefix-hidden'
+    style to see if the prefix should be listed or not.
+7)  If at all possible, completion code for a command or a suite of
+    commands should go into only one file. If a command has sub-commands,
+    implementing a state-machine might be a good idea. See the `_rpm'
+    and `_pbm' files for examples of different styles. Also see the
+    documentation for `_arguments' and `_values' for two functions
+    that may help you with this.
+8)  If a completion function generates completely different types of
+    completions (for example, because the command has several
+    completely different modes), it should allow users to define
+    functions that separately override the behavior for these
+    different types. This can easily be achieved by using the
+    `_call_function' utility function, as in:
+
+      _call_function ret _command_$subcommand && return ret
+
+    This will try to call the function `_command_$subcommand' and if
+    it exists, it will be called and the completion function exits
+    with its exit status. After this call to `call_function' the
+    completion function would contain the code for the default way to
+    generate the matches.
+    See the `_email_addresses', `_rpm' and `_nslookup' files for examples.
+9)  Be mindful of quoting/escaping edge cases. Notably:
+    * Elements of the `$words' array are derived verbatim from the user's
+      command-line input -- if they type an argument in quotes or escaped
+      by backslashes, that is how it appears in the array.
+    * Option-arguments are stored in `$opt_args` the same way. Further,
+      since multiple arguments to the same option are represented in a
+      colon-delimited fashion, backslashes and colons passed by the user
+      are escaped. For instance, the option-arguments parsed from
+      `-afoo -a "bar" -a 1:2:3' appear in `$opt_args[-a]` as
+      `foo:"bar":1\:2\:3'.
+    * The `_call_program` helper used by many completion functions is
+      implemented using `eval', so arguments to it must be quoted
+      accordingly. As mentioned above, most of the user's own input comes
+      pre-escaped, but you may run into problems passing file names or
+      data derived from another command's output to the helper. Consider
+      using some variation of the `q` expansion flag to deal with this:
+      `_call_program vals $words[1] ${(q-)myfile}'
+10) If you are going to create a new completion function '_cmd' for a
+    command 'cmd', and if the 'cmd' supports the --help option, then you
+    may try
+      compdef _gnu_generic cmd
+      cmd -<TAB>
+    _gnu_generic may not work sufficiently well for 'cmd', but the specs
+    for _arguments generated from the help text are cached in a variable
+    '_args_cache_cmd', and you can save them in a file '_cmd' by
+      print -r -- ${(F)${(@qqq)_args_cache_cmd}} > _cmd
+    and use the file as a draft of the new completion function.
+
+-----------------
+KNOWN BUGS IN ZSH
+-----------------
+
+------------------------------------------------------------------------
+The pattern %?* matches names beginning with %? instead of names with at
+least two characters beginning with %. This is a hack to allow %?foo job
+substitution without quoting. This behaviour is incompatible with sh
+and ksh and may be removed in the future. A good fix would be to keep
+such patterns unchanged if they do not match regardless of the state of
+the nonomatch and nullglob options.
+------------------------------------------------------------------------
+It is currently impossible to time builtins.
+------------------------------------------------------------------------
+38754: unwanted scrolling of the terminal
+------------------------------------------------------------------------
+40106: The comp* completion-related builtins (compadd, compset, etc) are
+run with $_comp_options in effect, rather than the user's options.
+------------------------------------------------------------------------
+users/20807: vcs_info quilt 'addon' mode: hook lookup context specifies
+the underlying VCS but not whether quilt is used.
+
+Workaround: test (( ${+funcstack[(r)VCS_INFO_quilt]} )).
+------------------------------------------------------------------------
+41184: 'exec' optimization for last command in a subshell should be
+skipped when STTY=... is set for that command.  This is complicated
+because the decision to (not) fork is made in execcmd_exec() before
+the prefix parameter assignments are examined in execute().
+------------------------------------------------------------------------
+41203 and others: Make it easier to maintain C modules out of tree.
+(May require defining a stable API for modules, see 41254)
+------------------------------------------------------------------------
+44850 terminal issues with continuation markers
+------------------------------------------------------------------------
+users/24765 -direct terminals. Not a bug as such but we may need to do
+  something if -direct values in TERM are ever common
+------------------------------------------------------------------------
+44850: zle -M doesn't work properly if the command line fills the screen
+------------------------------------------------------------------------
+44525, 45778 [PATCH] prompt redrawn on the wrong line upon SIGWINCH
+------------------------------------------------------------------------
+45400: vared does not work in subshells, even when the parent shell is
+interactive and the subshell is the foreground job.  The USEZLE option is
+always turned off in subshells, for reasons lost to history.  There is a
+related, probably obsolete, vared special case for $TERM set to "emacs".
+------------------------------------------------------------------------
+47561: [PATCH v4] vcs_info: choose backend by basedir
+------------------------------------------------------------------------
+48091, 49276: Bug in compdescribe with matcher 'b:-=+'
+------------------------------------------------------------------------
+users/26071: Strange behavior about option completion of "git push --f"
+------------------------------------------------------------------------
+50930: If a conditional expression appears in a current-shell construct
+(such as { sleep 20 && print $? }) which is then suspended with ^Z, the
+return value of the left side of the expression is always 148 (SIGTSTP)
+and thus the expression is likely to be incorrectly interpreted.
+------------------------------------------------------------------------
+52521: Empty files and unreadable files cannot be removed using the
+mapfile module "unset 'mapfile[filename]'", and are not distinguished
+from files that do not exist.
+------------------------------------------------------------------------
+52747,52755: HIST_IGNORE_DUPS et. al. ignore syntactically significant
+quoted whitespace and can incorrectly exclude commands as duplicates.
