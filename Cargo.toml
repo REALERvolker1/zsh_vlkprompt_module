@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 package.edition = "2024"
-members = [".", "vendored/zsh-module-rs/zsh-sys"]
+members = [".", "vendored/zsh-sys"]
 
 [workspace.dependencies]
 bindgen = "0.72.1"
@@ -20,7 +20,7 @@ rustix = { version = "1.1.4", default-features = false, features = [
     "fs",
     "use-libc",
 ] }
-zsh-sys = { path = "vendored/zsh-module-rs/zsh-sys" }
+zsh-sys = { path = "vendored/zsh-sys" }
 
 
 [package]

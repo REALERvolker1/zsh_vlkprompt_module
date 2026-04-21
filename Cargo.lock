@@ -440,8 +440,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "zsh_autocomplete_rs"
-version = "0.1.0"
+name = "zsh_vlkprompt_module"
+version = "0.6.0"
 dependencies = [
  "bitflags",
  "bytemuck",

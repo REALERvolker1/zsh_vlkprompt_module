@@ -4,44 +4,18 @@ extern crate alloc;
 
 pub mod printing;
 pub mod wrapper;
+mod zalloc;
 
-use crate::printing::stdout_println;
-use ::alloc::boxed::Box;
+use crate::{printing::stdout_println, wrapper::Static};
 use ::core::{
-    ffi::{CStr, c_char, c_int},
+    ffi::{c_char, c_int},
     ptr::null_mut,
+    sync::atomic::AtomicI64,
 };
 use ::heapless::String;
 use ::zsh_sys::{
     builtin, features, featuresarray, handlefeatures, module, options, paramdef, setfeatureenables,
-    wrappers,
 };
-
-mod zallocator {
-    use {
-        ::core::alloc::{GlobalAlloc, Layout},
-        ::zsh_sys::{zalloc, zfree, zrealloc, zshcalloc},
-    };
-
-    #[global_allocator]
-    static ZALLOCATOR: Zallocator = Zallocator;
-
-    struct Zallocator;
-    unsafe impl GlobalAlloc for Zallocator {
-        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            unsafe { zalloc(layout.size()) }.cast()
-        }
-        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            unsafe { zfree(ptr.cast(), layout.size() as _) }
-        }
-        unsafe fn realloc(&self, ptr: *mut u8, _: Layout, new_size: usize) -> *mut u8 {
-            unsafe { zrealloc(ptr.cast(), new_size as _) }.cast()
-        }
-        unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-            unsafe { zshcalloc(layout.size()) }.cast()
-        }
-    }
-}
 
 #[panic_handler]
 fn p(info: &core::panic::PanicInfo<'_>) -> ! {
@@ -51,33 +25,13 @@ fn p(info: &core::panic::PanicInfo<'_>) -> ! {
     unsafe { libc::exit(libc::EXIT_FAILURE) };
 }
 
-struct Globals {
-    pub patab: &'static mut [paramdef],
-    pub bintab: &'static mut [builtin],
-}
-unsafe impl Send for Globals {}
-unsafe impl Sync for Globals {}
-
-static mut GLOBALS: Globals = Globals {
-    patab: &mut [],
-    bintab: &mut [builtin::BUILTIN(
-        c"example".as_ptr().cast_mut(),
-        0,
-        Some(bin_example),
-        0,
-        4,
-        0,
-        c"flags".as_ptr().cast_mut(),
-        null_mut(),
-    )],
-};
-
 unsafe extern "C" fn bin_example(
     nam: *mut c_char,
     mut args: *mut *mut c_char,
     opts: *mut options,
     func: c_int,
 ) -> c_int {
+    let old = EXCOUNT.fetch_add(1, ::core::sync::atomic::Ordering::AcqRel);
     let oargs = args;
     stdout_println("Options:");
     (32..128).for_each(|c| {
@@ -90,19 +44,21 @@ unsafe extern "C" fn bin_example(
     stdout_println("\nArguments:");
 
     unsafe {
-        while !(*args).is_null() {
-            args = args.add(1);
+        while !args.is_null() && !(*args).is_null() {
             libc::putchar_unlocked(b' ' as _);
             libc::write(
                 libc::STDOUT_FILENO,
                 (*args).cast(),
                 zsh_sys::ztrlen(*args) as _,
             );
+            args = args.add(1);
         }
     }
     stdout_println("\nName:");
     unsafe { libc::write(libc::STDOUT_FILENO, nam.cast(), libc::strlen(nam)) };
 
+    stdout_println("\nCount:");
+    unsafe { libc::printf(c"%u\n".as_ptr(), old) };
     // while !unsafe { (*args) }.is_null() {
     //     args = args.wrapping_add(1);
 
@@ -110,26 +66,28 @@ unsafe extern "C" fn bin_example(
     0
 }
 
-struct Static<T>(pub T);
-impl<T> Static<T> {
-    pub const fn ptr(&mut self) -> *mut T {
-        &raw mut self.0
-    }
-}
-unsafe impl<T> Send for Static<T> {}
-unsafe impl<T> Sync for Static<T> {}
+static EXCOUNT: AtomicI64 = AtomicI64::new(0);
 
-static mut FEATURES: Static<features> = Static(features {
-    bn_list: unsafe { GLOBALS.bintab.as_mut_ptr() },
-    bn_size: unsafe { GLOBALS.bintab.len() as _ },
-    cd_list: null_mut(),
-    cd_size: 0,
-    mf_list: null_mut(),
-    mf_size: 0,
-    pd_list: null_mut(),
-    pd_size: 0,
-    n_abstract: 0,
-});
+static mut PARAMTAB: Static<[paramdef; 1]> = Static([paramdef::INTPARAMDEF(
+    c"EXCOUNT".as_ptr().cast_mut(),
+    EXCOUNT.as_ptr(),
+)]);
+
+static mut BINTAB: Static<[builtin; 1]> = Static([builtin::BUILTIN(
+    c"example".as_ptr().cast_mut(),
+    0,
+    Some(bin_example),
+    0,
+    5,
+    0,
+    c"flags".as_ptr().cast_mut(),
+    null_mut(),
+)]);
+static mut FEATURES: Static<features> = Static(
+    features::CONST_DEFAULT
+        .with_builtins(unsafe { BINTAB.0.as_mut_slice() })
+        .with_params(unsafe { PARAMTAB.0.as_mut_slice() }),
+);
 
 /// Initial memory allocation and basic setup. Called before dependencies are checked.
 #[unsafe(no_mangle)]

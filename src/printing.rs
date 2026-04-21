@@ -1,5 +1,3 @@
-use ::core::ffi::c_int;
-
 use ::libc::{STDERR_FILENO, STDOUT_FILENO};
 use ::rustix::{fd::BorrowedFd, io};
 

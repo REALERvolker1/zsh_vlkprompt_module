@@ -1,0 +1,20 @@
+[package]
+name = "zsh-sys"
+version = "0.1.1"
+edition.workspace = true
+description = "Low-level bindings to zsh internals"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytemuck.workspace = true
+libc.workspace = true
+num-traits.workspace = true
+
+[build-dependencies]
+bindgen.workspace = true
+const_format.workspace = true
+konst.workspace = true
+memchr.workspace = true
+regex.workspace = true
