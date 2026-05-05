@@ -1026,15 +1026,48 @@ impl ParamRef {
     }
 
     /// Reset this parameter's type to an explicit zsh flag set.
+    ///
+    /// This mirrors zsh's `resetparam()` logic without calling that symbol: some
+    /// zsh builds declare it in headers but do not export it for modules.  The
+    /// parameter name is copied to a fixed stack buffer before `unsetparam_pm()`
+    /// invalidates this handle; names longer than the buffer are rejected.
     #[inline]
     pub unsafe fn reset_flags(self, flags: c_int) -> Result<(), ParamError> {
         unsafe { self.ensure_can_call_unset()? };
-        let rc = unsafe { resetparam(self.as_ptr(), flags) };
-        if rc == 0 {
-            Ok(())
-        } else {
-            Err(ParamError::ZshRejected)
+
+        let name = unsafe { self.name() };
+        if name.is_null() {
+            return Err(ParamError::NullName);
         }
+
+        if let Some(visible) = unsafe { Self::lookup_direct(name) }
+            && visible.as_ptr() != self.as_ptr()
+        {
+            return Err(ParamError::Hidden);
+        }
+
+        let mut name_buf = [0 as c_char; 256];
+        let mut idx = 0usize;
+        while idx + 1 < name_buf.len() {
+            let ch = unsafe { *name.add(idx) };
+            name_buf[idx] = ch;
+            if ch == 0 {
+                break;
+            }
+            idx += 1;
+        }
+        if name_buf[idx] != 0 {
+            return Err(ParamError::ZshRejected);
+        }
+
+        let rc = unsafe { unsetparam_pm(self.as_ptr(), 0, 1) };
+        if rc != 0 {
+            return Err(ParamError::ZshRejected);
+        }
+
+        unsafe { Self::from_raw(createparam(name_buf.as_mut_ptr(), flags)) }
+            .map(|_| ())
+            .ok_or(ParamError::ZshRejected)
     }
 
     /// Unset this parameter using `unsetparam_pm()`.

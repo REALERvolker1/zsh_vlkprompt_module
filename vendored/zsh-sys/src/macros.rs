@@ -31,12 +31,11 @@ pub(crate) use crate::{
     hist_ring, hookdef, intrap, lextok, linklist, linknode, locallevel, matheval, mathfunc,
     mb_charinit, mb_metacharlenconv, mb_metastrlenend, mb_niceformat, mnumber,
     mnumber__bindgen_ty_1, new_heaps, old_heaps, optlookup, optlookupc, opts, param, paramdef,
-    paramtab, queue_front, queue_in, queue_rear, queueing_enabled, realparamtab, resetparam,
-    runhookdef, setaparam, setarrvalue, sethparam, setiparam, setiparam_no_convert, setnparam,
-    setnumvalue, setsparam, setstrvalue, sig_msg, sigchld_mask, signal_block, signal_mask,
-    signal_mask_queue, signal_queue, signal_setmask, signal_unblock, stophist, switch_heaps, tclen,
-    trapisfunc, traplocallevel, unsetparam, unsetparam_pm, value, zero_mnumber, zhandler, zlong,
-    zshhooks,
+    paramtab, queue_front, queue_in, queue_rear, queueing_enabled, realparamtab, runhookdef,
+    setaparam, setarrvalue, sethparam, setiparam, setiparam_no_convert, setnparam, sig_msg,
+    sigchld_mask, signal_block, signal_mask, signal_mask_queue, signal_queue, signal_setmask,
+    signal_unblock, stophist, switch_heaps, tclen, trapisfunc, traplocallevel, unsetparam,
+    unsetparam_pm, value, zero_mnumber, zhandler, zlong, zshhooks,
 };
 
 pub mod arithmetic;
