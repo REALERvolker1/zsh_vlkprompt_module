@@ -1,4 +1,6 @@
+#[allow(unused_imports)]
 use super::*;
+use crate::*;
 
 pub const fn arena(X: Heapid) -> *mut char {
     core::ptr::without_provenance_mut((X as usize) + size_of::<heap>())

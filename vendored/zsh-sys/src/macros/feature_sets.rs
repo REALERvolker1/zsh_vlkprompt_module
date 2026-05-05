@@ -1,4 +1,6 @@
+#[allow(unused_imports)]
 use super::*;
+use crate::*;
 
 impl features {
     #[inline(always)]
@@ -24,9 +26,9 @@ impl features {
         self.cd_size = conddefs.len() as _;
         self
     }
-    pub const fn with_mathfuncs(mut self, mathfuncs: &'static mut [mathfunc]) -> Self {
-        self.mf_list = mathfuncs.as_mut_ptr();
-        self.mf_size = mathfuncs.len() as _;
+    pub const fn with_mathfuncs(mut self, mathfunc_defs: &'static mut [mathfunc]) -> Self {
+        self.mf_list = mathfunc_defs.as_mut_ptr();
+        self.mf_size = mathfunc_defs.len() as _;
         self
     }
     pub const fn with_n_abstract(mut self, n_abstract: c_int) -> Self {

@@ -70,6 +70,15 @@ unsafe extern "C" fn bin_example(
     0
 }
 
+unsafe extern "C" fn bin_example2(
+    nam: *mut c_char,
+    mut args: *mut *mut c_char,
+    opts: *mut options,
+    _func: c_int,
+) -> c_int {
+    0
+}
+
 mod excount_experiments {
     use {
         super::*,
@@ -109,7 +118,11 @@ mod excount_experiments {
                 { AtomicOrdering::Acquire },
             >(&raw mut EXCOUNT, test, try_store)
         };
-        if res { Ok(val) } else { Err(val) }
+        if res {
+            Ok(val)
+        } else {
+            Err(val)
+        }
     }
     pub fn fetch_add_excount(value: zlong) -> zlong {
         unsafe {
@@ -131,7 +144,7 @@ static mut PARAMTAB: Static<[paramdef; 1]> = Static([paramdef::INTPARAMDEF(
 static mut BINTAB: Static<[builtin; 1]> = Static([builtin::BUILTIN(
     c"example".as_ptr().cast_mut(),
     0,
-    Some(bin_example),
+    Some(bin_example2),
     0,
     5,
     0,

@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use super::*;
 
 pub unsafe fn sigmsg(sig: c_int) -> &'static CStr {

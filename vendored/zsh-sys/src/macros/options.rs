@@ -1,4 +1,6 @@
+#[allow(unused_imports)]
 use super::*;
+use crate::*;
 
 pub fn EMULATION(X: c_int) -> c_int {
     let emu = unsafe { emulation };

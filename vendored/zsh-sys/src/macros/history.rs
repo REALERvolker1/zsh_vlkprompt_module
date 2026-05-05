@@ -1,4 +1,6 @@
+#[allow(unused_imports)]
 use super::*;
+use crate::*;
 
 pub unsafe fn firsthist() -> i64 {
     let r = unsafe { hist_ring.as_mut() };
