@@ -1,5 +1,7 @@
 #![no_std]
 #![allow(static_mut_refs)]
+#![feature(core_intrinsics)]
+#![allow(internal_features)]
 extern crate alloc;
 
 pub mod printing;
@@ -8,13 +10,14 @@ mod zalloc;
 
 use crate::{printing::stdout_println, wrapper::Static};
 use ::core::{
-    ffi::{c_char, c_int},
+    ffi::{c_char, c_int, c_long},
     ptr::null_mut,
-    sync::atomic::AtomicI64,
+    sync::atomic::{AtomicI64, Ordering},
 };
 use ::heapless::String;
 use ::zsh_sys::{
     builtin, features, featuresarray, handlefeatures, module, options, paramdef, setfeatureenables,
+    zlong,
 };
 
 #[panic_handler]
@@ -31,7 +34,8 @@ unsafe extern "C" fn bin_example(
     opts: *mut options,
     _func: c_int,
 ) -> c_int {
-    let old = EXCOUNT.fetch_add(1, ::core::sync::atomic::Ordering::AcqRel);
+    // let old = EXCOUNT.fetch_add(1, ::core::sync::atomic::Ordering::AcqRel);
+    let old = excount_experiments::fetch_add_excount(1);
     let _oargs = args;
     stdout_println("Options:");
     (32..128).for_each(|c| {
@@ -58,7 +62,7 @@ unsafe extern "C" fn bin_example(
     unsafe { libc::write(libc::STDOUT_FILENO, nam.cast(), libc::strlen(nam)) };
 
     stdout_println("\nCount:");
-    unsafe { libc::printf(c"%u\n".as_ptr(), old) };
+    unsafe { libc::printf(c"%ld\n".as_ptr(), old as c_long) };
     // while !unsafe { (*args) }.is_null() {
     //     args = args.wrapping_add(1);
 
@@ -66,11 +70,62 @@ unsafe extern "C" fn bin_example(
     0
 }
 
-static EXCOUNT: AtomicI64 = AtomicI64::new(0);
+mod excount_experiments {
+    use {
+        super::*,
+        ::core::{
+            intrinsics::AtomicOrdering,
+            ptr::{read_volatile, write_volatile},
+        },
+    };
+
+    pub static mut EXCOUNT: zlong = 0;
+
+    pub fn load_excount() -> zlong {
+        // core::intrinsics::atomic_cxchg(dst, old, src)
+        // core::intrinsics::atomic_load(src)
+        // core::intrinsics::atomic_store(dst, val)
+
+        // unsafe { read_volatile(&raw const EXCOUNT) }
+        unsafe {
+            core::intrinsics::atomic_load::<zlong, { AtomicOrdering::Acquire }>(&raw const EXCOUNT)
+        }
+    }
+    pub fn store_excount(value: zlong) {
+        // unsafe { write_volatile(&raw mut EXCOUNT, value) };
+        unsafe {
+            core::intrinsics::atomic_store::<zlong, { AtomicOrdering::Release }>(
+                &raw mut EXCOUNT,
+                value,
+            )
+        }
+    }
+    pub fn cmpxchg_excount(test: zlong, try_store: zlong) -> Result<zlong, zlong> {
+        // todo!("No idea how to do this with fence semantics");
+        let (val, res) = unsafe {
+            core::intrinsics::atomic_cxchg::<
+                zlong,
+                { AtomicOrdering::AcqRel },
+                { AtomicOrdering::Acquire },
+            >(&raw mut EXCOUNT, test, try_store)
+        };
+        if res { Ok(val) } else { Err(val) }
+    }
+    pub fn fetch_add_excount(value: zlong) -> zlong {
+        unsafe {
+            core::intrinsics::atomic_xadd::<zlong, zlong, { AtomicOrdering::AcqRel }>(
+                &raw mut EXCOUNT,
+                value,
+            )
+        }
+    }
+}
+
+// static EXCOUNT: AtomicI64 = AtomicI64::new(0);
 
 static mut PARAMTAB: Static<[paramdef; 1]> = Static([paramdef::INTPARAMDEF(
     c"EXCOUNT".as_ptr().cast_mut(),
-    EXCOUNT.as_ptr(),
+    &raw mut excount_experiments::EXCOUNT,
 )]);
 
 static mut BINTAB: Static<[builtin; 1]> = Static([builtin::BUILTIN(

@@ -1,3 +1,6 @@
 /target
 vendored/zsh-module-rs/zsh-sys/src/bindings.rs
 gitignored/
+.codex/
+.ralph/
+.agents/
