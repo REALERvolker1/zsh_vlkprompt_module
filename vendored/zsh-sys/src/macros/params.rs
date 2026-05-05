@@ -1,8 +1,8 @@
-use super::strings::MetaString;
 #[allow(unused_imports)]
 use super::*;
-use crate::*;
 use core::ptr::NonNull;
+use {super::strings::MetaString, ::bytemuck::TransparentWrapper};
+use {crate::*, ::core::fmt::Display};
 
 pub trait GsuTable {
     type Item;
@@ -563,7 +563,7 @@ impl ParamType for MetaString {
 }
 
 /// The zsh parameter type bits, normalized so `PM_SCALAR == 0` is explicit.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ParamKind {
     Scalar,
     Array,
@@ -575,6 +575,12 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
+    pub const fn str(self) -> &'static str {
+        match self {
+            Self::Other(..) => "Other",
+            _ => todo!(),
+        }
+    }
     #[inline]
     pub const fn from_flags(flags: c_int) -> Self {
         match PM_TYPE(flags) {
@@ -601,9 +607,18 @@ impl ParamKind {
         }
     }
 }
+impl Display for ParamKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let sstr = self.str();
+        match self {
+            Self::Other(i) => write!(f, "{sstr}: {i}"),
+            _ => sstr.fmt(f),
+        }
+    }
+}
 
 /// Checked failure modes for the safe-ish parameter wrapper.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ParamError {
     NullName,
     NullParam,
@@ -621,6 +636,27 @@ pub enum ParamError {
     MissingSet,
     MissingUnset,
 }
+impl ParamError {
+    pub const fn str(self) -> &'static str {
+        match self {
+            Self::TypeMismatch { .. } => "Type mismatch",
+            Self::BadKind => "Bad Kind",
+            _ => todo!(),
+        }
+    }
+}
+impl Display for ParamError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let sstr = self.str();
+        match self {
+            Self::TypeMismatch { expected, found } => {
+                write!(f, "{sstr}, expected {expected}, found {found}")
+            }
+            _ => sstr.fmt(f),
+        }
+    }
+}
+impl core::error::Error for ParamError {}
 
 /// A non-null handle to a zsh `Param`.
 ///
@@ -632,6 +668,8 @@ pub enum ParamError {
 ///
 /// Methods that may remove or replace the parameter take `self` by value to make
 /// the invalidation visible at the Rust call site.
+#[derive(Debug, TransparentWrapper, Copy, Clone)]
+#[repr(transparent)]
 pub struct ParamRef {
     ptr: NonNull<param>,
 }

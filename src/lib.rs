@@ -73,7 +73,6 @@ pub extern "C" fn setup_(_m: *mut module) -> c_int {
 /// Final initialization. Features are registered here (e.g., [`addbuiltins`](zsh_sys::addbuiltins)).
 #[unsafe(no_mangle)]
 pub extern "C" fn boot_(_m: *mut module) -> c_int {
-    // let me = unsafe { Box::from_raw(module) };
     0
 }
 /// Prepares for unloading. Unregisters features.
