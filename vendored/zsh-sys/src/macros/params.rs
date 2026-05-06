@@ -4,75 +4,122 @@ use core::ptr::NonNull;
 use {crate::*, ::core::fmt::Display};
 use {::bytemuck::TransparentWrapper, ::core::mem::ManuallyDrop};
 
-/// A valid member of the GSU union. Useful if your module adds a new variable type
+/// A valid member of the GSU union. This wraps the dynamically-typed zsh internal
+/// tagged union with much-less-dynamically-typed utility wrappers.
+///
+/// This abuses the type system to allow deduplication of unsafe code, at the cost
+/// of some up-front boilerplate
+///
 /// # Safety
 /// Caller asserts zsh parameters can take this as a valid GSU
 pub unsafe trait GsuTable {
+    /// If you take ptr values, please use `NonNull<T>` instead of `*mut T`, it will
+    /// make everyone's lives easier.
     type Item;
     /// a bitor "any-of" bitflag union
     const PM_TYPEFLAG_UNION: c_int;
-    fn get(&self, p: *mut param) -> Option<Self::Item>;
-    fn set(&self, p: *mut param, val: Self::Item);
-    fn unset(&self, p: *mut param, idx: c_int);
-}
-macro_rules! gsutable {
-    (%nn $this:ty, $ty:ty, $flag:expr) => {
-        unsafe impl GsuTable for $this {
-            type Item = NonNull<$ty>;
-            const PM_TYPEFLAG_UNION: c_int = $flag;
-            fn get(&self, p: *mut param) -> Option<Self::Item> {
-                let f = self.getfn?;
-                NonNull::new(unsafe { f(p) })
-            }
-            fn set(&self, p: *mut param, val: Self::Item) {
-                if let Some(f) = self.setfn {
-                    unsafe { f(p, val.as_ptr()) }
-                }
-            }
-            fn unset(&self, p: *mut param, idx: c_int) {
-                if let Some(f) = self.unsetfn {
-                    unsafe { f(p, idx) }
-                }
-            }
-        }
-    };
-    (%val $this:ty, $ty:ty, $flag:expr) => {
-        unsafe impl GsuTable for $this {
-            type Item = $ty;
-            const PM_TYPEFLAG_UNION: c_int = $flag;
-            fn get(&self, p: *mut param) -> Option<Self::Item> {
-                let f = self.getfn?;
-                Some(unsafe { f(p) })
-            }
-            fn set(&self, p: *mut param, val: Self::Item) {
-                if let Some(f) = self.setfn {
-                    unsafe { f(p, val) }
-                }
-            }
-            fn unset(&self, p: *mut param, idx: c_int) {
-                if let Some(f) = self.unsetfn {
-                    unsafe { f(p, idx) }
-                }
-            }
-        }
-    };
-}
-gsutable!(%nn gsu_array, *mut c_char, PM_ARRAY);
-gsutable!(%val gsu_float, f64, PM_EFLOAT | PM_FFLOAT);
-gsutable!(%nn gsu_hash, hashtable, PM_HASHED);
-gsutable!(%val gsu_integer, zlong, PM_INTEGER);
-gsutable!(%nn gsu_scalar, c_char, PM_SCALAR);
 
-// SAFETY: None lmao, I'm just doing this so our APIs don't suck
-unsafe impl GsuTable for c_void {
-    type Item = ();
-    const PM_TYPEFLAG_UNION: c_int = PM_TYPE_MASK;
-    fn get(&self, _p: *mut param) -> Option<Self::Item> {
-        Some(())
-    }
-    fn set(&self, _p: *mut param, _val: Self::Item) {}
-    fn unset(&self, _p: *mut param, _idx: c_int) {}
+    /// Try to get the value of the given parameter using this table
+    unsafe fn get(&self, p: *mut param) -> Option<Self::Item>;
+    /// Try to in-place-overwrite the given parameter with a value of the same type.
+    ///
+    /// # Safety
+    /// Zsh must own any heap allocations, and they must not be on a temporary heap
+    unsafe fn set(&self, p: *mut param, val: Self::Item);
+    /// Try to unset the parameter
+    unsafe fn unset(&self, p: *mut param, idx: c_int);
 }
+unsafe impl GsuTable for gsu_float {
+    type Item = f64;
+    const PM_TYPEFLAG_UNION: c_int = PM_EFLOAT | PM_FFLOAT;
+    unsafe fn get(&self, p: *mut param) -> Option<Self::Item> {
+        let f = self.getfn?;
+        Some(unsafe { f(p) })
+    }
+    unsafe fn set(&self, p: *mut param, val: Self::Item) {
+        if let Some(f) = self.setfn {
+            unsafe { f(p, val) }
+        }
+    }
+    unsafe fn unset(&self, p: *mut param, idx: c_int) {
+        if let Some(f) = self.unsetfn {
+            unsafe { f(p, idx) }
+        }
+    }
+}
+unsafe impl GsuTable for gsu_integer {
+    type Item = zlong;
+    const PM_TYPEFLAG_UNION: c_int = PM_INTEGER;
+    unsafe fn get(&self, p: *mut param) -> Option<Self::Item> {
+        let f = self.getfn?;
+        Some(unsafe { f(p) })
+    }
+    unsafe fn set(&self, p: *mut param, val: Self::Item) {
+        if let Some(f) = self.setfn {
+            unsafe { f(p, val) }
+        }
+    }
+    unsafe fn unset(&self, p: *mut param, idx: c_int) {
+        if let Some(f) = self.unsetfn {
+            unsafe { f(p, idx) }
+        }
+    }
+}
+unsafe impl GsuTable for gsu_array {
+    type Item = NonNull<*mut c_char>;
+    const PM_TYPEFLAG_UNION: c_int = PM_ARRAY;
+    unsafe fn get(&self, p: *mut param) -> Option<Self::Item> {
+        let f = self.getfn?;
+        NonNull::new(unsafe { f(p) })
+    }
+    unsafe fn set(&self, p: *mut param, val: Self::Item) {
+        if let Some(f) = self.setfn {
+            unsafe { f(p, val.as_ptr()) }
+        }
+    }
+    unsafe fn unset(&self, p: *mut param, idx: c_int) {
+        if let Some(f) = self.unsetfn {
+            unsafe { f(p, idx) }
+        }
+    }
+}
+unsafe impl GsuTable for gsu_hash {
+    type Item = NonNull<hashtable>;
+    const PM_TYPEFLAG_UNION: c_int = PM_HASHED;
+    unsafe fn get(&self, p: *mut param) -> Option<Self::Item> {
+        let f = self.getfn?;
+        NonNull::new(unsafe { f(p) })
+    }
+    unsafe fn set(&self, p: *mut param, val: Self::Item) {
+        if let Some(f) = self.setfn {
+            unsafe { f(p, val.as_ptr()) }
+        }
+    }
+    unsafe fn unset(&self, p: *mut param, idx: c_int) {
+        if let Some(f) = self.unsetfn {
+            unsafe { f(p, idx) }
+        }
+    }
+}
+unsafe impl GsuTable for gsu_scalar {
+    type Item = NonNull<c_char>;
+    const PM_TYPEFLAG_UNION: c_int = PM_SCALAR;
+    unsafe fn get(&self, p: *mut param) -> Option<Self::Item> {
+        let f = self.getfn?;
+        NonNull::new(unsafe { f(p) })
+    }
+    unsafe fn set(&self, p: *mut param, val: Self::Item) {
+        if let Some(f) = self.setfn {
+            unsafe { f(p, val.as_ptr()) }
+        }
+    }
+    unsafe fn unset(&self, p: *mut param, idx: c_int) {
+        if let Some(f) = self.unsetfn {
+            unsafe { f(p, idx) }
+        }
+    }
+}
+
 impl param__bindgen_ty_2 {
     pub const fn is_null(&self) -> bool {
         // SAFETY: Every single field of this union is a pointer type
@@ -104,17 +151,20 @@ impl paramdef {
         PM_TYPE(self.flags)
     }
     /// Shorthand for common uses of adding parameters, with no special hash properties.
+    ///
+    /// TODO: I desperately tried to avoid making `var` opaque, but I straight-up
+    /// ran out of options, without resorting to runtime computations
     #[inline]
-    pub const fn PARAMDEF<T, G: GsuTable>(
+    pub const fn PARAMDEF<G: GsuTable>(
         name: *mut c_char,
         flags: c_int,
-        var: *mut T,
+        var: *mut c_void,
         gsu: *const G,
     ) -> Self {
         Self {
             name,
             flags,
-            var: var.cast(),
+            var: var,
             gsu: gsu.cast(),
             getnfn: None,
             scantfn: None,
@@ -125,7 +175,7 @@ impl paramdef {
     /// or gsu tables
     #[inline(always)]
     pub const fn PARAMDEF_NOGSU<T>(name: *mut c_char, flags: c_int, var: *mut T) -> Self {
-        Self::PARAMDEF(name, flags, var, null::<c_void>())
+        Self::PARAMDEF::<gsu_scalar>(name, flags, var.cast(), null())
     }
     /// Note that the following definitions are appropriate for defining
     /// parameters that reference a variable (var).  Hence the get/set/unset
@@ -326,7 +376,7 @@ impl param {
     /// Caller asserts this struct is pinned and they called this with the right type
     pub unsafe fn standard_gsu_get<G: GsuTable>(&mut self) -> Option<G::Item> {
         let selfptr = &raw mut *self;
-        unsafe { self.deref_standard_gsu::<G>() }?.get(selfptr)
+        unsafe { self.deref_standard_gsu::<G>()?.get(selfptr) }
     }
     /// inner GSU table set
     /// # Safety
@@ -338,7 +388,7 @@ impl param {
 
         match ptab {
             Some(g) => {
-                g.set(selfptr, val);
+                unsafe { g.set(selfptr, val) };
                 Ok(())
             }
             None => Err(val),
@@ -351,7 +401,7 @@ impl param {
     pub unsafe fn standard_gsu_unset<G: GsuTable>(&mut self, idx: c_int) -> Result<(), c_int> {
         let selfptr = &raw mut *self;
         let ptab = unsafe { self.deref_standard_gsu::<G>() }.ok_or(idx)?;
-        ptab.unset(selfptr, idx);
+        unsafe { ptab.unset(selfptr, idx) };
         Ok(())
     }
 
