@@ -1,8 +1,8 @@
 #[allow(unused_imports)]
 use super::*;
 use core::ptr::NonNull;
-use {super::strings::MetaString, ::bytemuck::TransparentWrapper, ::core::mem::ManuallyDrop};
 use {crate::*, ::core::fmt::Display};
+use {::bytemuck::TransparentWrapper, ::core::mem::ManuallyDrop};
 
 /// A valid member of the GSU union. Useful if your module adds a new variable type
 /// # Safety
@@ -438,19 +438,20 @@ impl ParamType for zlong {
         unsafe { getiparam(param) }
     }
 }
-impl ParamType for MetaString {
-    unsafe fn cast_value_or_default(value: &mut value) -> Self {
-        Self {
-            ptr: unsafe { value.to_zheap_str() },
-        }
-    }
-    unsafe fn get_param_or_default(param: *mut c_char) -> Self {
-        // unsafe { getsparam_u(param) }
-        Self {
-            ptr: unsafe { getsparam(param) },
-        }
-    }
-}
+// TODO: Metastrings should be allocated on the real heap, not the zheap.
+// impl ParamType for MetaString {
+//     unsafe fn cast_value_or_default(value: &mut value) -> Self {
+//         Self {
+//             ptr: unsafe { value.to_zheap_str() },
+//         }
+//     }
+//     unsafe fn get_param_or_default(param: *mut c_char) -> Self {
+//         // unsafe { getsparam_u(param) }
+//         Self {
+//             ptr: unsafe { getsparam(param) },
+//         }
+//     }
+// }
 
 /// The zsh parameter type bits, normalized so `PM_SCALAR == 0` is explicit.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
