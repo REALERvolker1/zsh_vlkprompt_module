@@ -576,6 +576,52 @@ impl Display for ParamError {
 }
 impl core::error::Error for ParamError {}
 
+macro_rules! current_gsu_accessors {
+    (
+        $gsu_name:ident,
+        $get_name:ident,
+        $set_name:ident,
+        $kind:expr,
+        $gsu:ty,
+        $field:ident,
+        $value:ty
+    ) => {
+        #[inline]
+        unsafe fn $gsu_name(&self) -> Result<*const $gsu, ParamError> {
+            unsafe { self.ensure_kind($kind)? };
+            let gsu = unsafe { *self.as_param().gsu.$field };
+            if gsu.is_null() {
+                Err(ParamError::NullGsu)
+            } else {
+                Ok(gsu)
+            }
+        }
+
+        /// Get the current value through this parameter's GSU table.
+        #[inline]
+        pub unsafe fn $get_name(&self) -> Result<$value, ParamError> {
+            let gsu = unsafe { self.$gsu_name()? };
+            let get = unsafe { (*gsu).getfn }.ok_or(ParamError::MissingGet)?;
+            Ok(unsafe { get(self.as_ptr()) })
+        }
+
+        /// Set the current value through this parameter's GSU table.
+        ///
+        /// Pointer values follow the same ownership rules as the underlying zsh
+        /// set function.  Ordinary scalar, array, and hash values must be
+        /// zsh-owned permanent allocation when zsh takes ownership.
+        #[inline]
+        pub unsafe fn $set_name(&self, val: $value) -> Result<(), ParamError> {
+            unsafe { self.ensure_writable()? };
+            let gsu = unsafe { self.$gsu_name()? };
+            let set = unsafe { (*gsu).setfn }.ok_or(ParamError::MissingSet)?;
+
+            unsafe { set(self.as_ptr(), val) };
+            Ok(())
+        }
+    };
+}
+
 /// A non-null handle to a zsh `Param`.
 ///
 /// This is only "safe-ish": zsh can still invalidate a `Param` through other
@@ -754,153 +800,51 @@ impl ParamRef {
         Ok(())
     }
 
-    #[inline]
-    unsafe fn scalar_gsu(&self) -> Result<*const gsu_scalar, ParamError> {
-        unsafe { self.ensure_kind(ParamKind::Scalar)? };
-        let gsu = unsafe { *self.as_param().gsu.s };
-        if gsu.is_null() {
-            Err(ParamError::NullGsu)
-        } else {
-            Ok(gsu)
-        }
-    }
-
-    #[inline]
-    unsafe fn integer_gsu(&self) -> Result<*const gsu_integer, ParamError> {
-        unsafe { self.ensure_kind(ParamKind::Integer)? };
-        let gsu = unsafe { *self.as_param().gsu.i };
-        if gsu.is_null() {
-            Err(ParamError::NullGsu)
-        } else {
-            Ok(gsu)
-        }
-    }
-
-    #[inline]
-    unsafe fn float_gsu(&self) -> Result<*const gsu_float, ParamError> {
-        unsafe { self.ensure_kind(ParamKind::Float)? };
-        let gsu = unsafe { *self.as_param().gsu.f };
-        if gsu.is_null() {
-            Err(ParamError::NullGsu)
-        } else {
-            Ok(gsu)
-        }
-    }
-
-    #[inline]
-    unsafe fn array_gsu(&self) -> Result<*const gsu_array, ParamError> {
-        unsafe { self.ensure_kind(ParamKind::Array)? };
-        let gsu = unsafe { *self.as_param().gsu.a };
-        if gsu.is_null() {
-            Err(ParamError::NullGsu)
-        } else {
-            Ok(gsu)
-        }
-    }
-
-    #[inline]
-    unsafe fn hash_gsu(&self) -> Result<*const gsu_hash, ParamError> {
-        unsafe { self.ensure_kind(ParamKind::Hash)? };
-        let gsu = unsafe { *self.as_param().gsu.h };
-        if gsu.is_null() {
-            Err(ParamError::NullGsu)
-        } else {
-            Ok(gsu)
-        }
-    }
-
-    /// Get the current scalar value through this parameter's GSU table.
-    #[inline]
-    pub unsafe fn get_scalar(&self) -> Result<*mut c_char, ParamError> {
-        let gsu = unsafe { self.scalar_gsu()? };
-        let get = unsafe { (*gsu).getfn }.ok_or(ParamError::MissingGet)?;
-        Ok(unsafe { get(self.as_ptr()) })
-    }
-
-    /// Set the current scalar value through this parameter's GSU table.
-    ///
-    /// `val` follows the same ownership rules as the underlying zsh set function:
-    /// for ordinary parameters zsh takes ownership and may `zsfree()` it later.
-    #[inline]
-    pub unsafe fn set_scalar_current(&self, val: *mut c_char) -> Result<(), ParamError> {
-        unsafe { self.ensure_writable()? };
-        let gsu = unsafe { self.scalar_gsu()? };
-        let set = unsafe { (*gsu).setfn }.ok_or(ParamError::MissingSet)?;
-
-        unsafe { set(self.as_ptr(), val) };
-        Ok(())
-    }
-
-    #[inline]
-    pub unsafe fn get_integer(&self) -> Result<zlong, ParamError> {
-        let gsu = unsafe { self.integer_gsu()? };
-        let get = unsafe { (*gsu).getfn }.ok_or(ParamError::MissingGet)?;
-        Ok(unsafe { get(self.as_ptr()) })
-    }
-
-    #[inline]
-    pub unsafe fn set_integer_current(&self, val: zlong) -> Result<(), ParamError> {
-        unsafe { self.ensure_writable()? };
-        let gsu = unsafe { self.integer_gsu()? };
-        let set = unsafe { (*gsu).setfn }.ok_or(ParamError::MissingSet)?;
-
-        unsafe { set(self.as_ptr(), val) };
-        Ok(())
-    }
-
-    #[inline]
-    pub unsafe fn get_float(&self) -> Result<f64, ParamError> {
-        let gsu = unsafe { self.float_gsu()? };
-        let get = unsafe { (*gsu).getfn }.ok_or(ParamError::MissingGet)?;
-        Ok(unsafe { get(self.as_ptr()) })
-    }
-
-    #[inline]
-    pub unsafe fn set_float_current(&self, val: f64) -> Result<(), ParamError> {
-        unsafe { self.ensure_writable()? };
-        let gsu = unsafe { self.float_gsu()? };
-        let set = unsafe { (*gsu).setfn }.ok_or(ParamError::MissingSet)?;
-
-        unsafe { set(self.as_ptr(), val) };
-        Ok(())
-    }
-
-    #[inline]
-    pub unsafe fn get_array(&self) -> Result<*mut *mut c_char, ParamError> {
-        let gsu = unsafe { self.array_gsu()? };
-        let get = unsafe { (*gsu).getfn }.ok_or(ParamError::MissingGet)?;
-        Ok(unsafe { get(self.as_ptr()) })
-    }
-
-    /// Set the current array value through this parameter's GSU table.
-    ///
-    /// `val` must be a null-terminated zsh-owned array with zsh-owned elements.
-    #[inline]
-    pub unsafe fn set_array_current(&self, val: *mut *mut c_char) -> Result<(), ParamError> {
-        unsafe { self.ensure_writable()? };
-        let gsu = unsafe { self.array_gsu()? };
-        let set = unsafe { (*gsu).setfn }.ok_or(ParamError::MissingSet)?;
-
-        unsafe { set(self.as_ptr(), val) };
-        Ok(())
-    }
-
-    #[inline]
-    pub unsafe fn get_hash_table(&self) -> Result<*mut hashtable, ParamError> {
-        let gsu = unsafe { self.hash_gsu()? };
-        let get = unsafe { (*gsu).getfn }.ok_or(ParamError::MissingGet)?;
-        Ok(unsafe { get(self.as_ptr()) })
-    }
-
-    #[inline]
-    pub unsafe fn set_hash_table_current(&self, val: *mut hashtable) -> Result<(), ParamError> {
-        unsafe { self.ensure_writable()? };
-        let gsu = unsafe { self.hash_gsu()? };
-        let set = unsafe { (*gsu).setfn }.ok_or(ParamError::MissingSet)?;
-
-        unsafe { set(self.as_ptr(), val) };
-        Ok(())
-    }
+    current_gsu_accessors!(
+        scalar_gsu,
+        get_scalar,
+        set_scalar_current,
+        ParamKind::Scalar,
+        gsu_scalar,
+        s,
+        *mut c_char
+    );
+    current_gsu_accessors!(
+        integer_gsu,
+        get_integer,
+        set_integer_current,
+        ParamKind::Integer,
+        gsu_integer,
+        i,
+        zlong
+    );
+    current_gsu_accessors!(
+        float_gsu,
+        get_float,
+        set_float_current,
+        ParamKind::Float,
+        gsu_float,
+        f,
+        f64
+    );
+    current_gsu_accessors!(
+        array_gsu,
+        get_array,
+        set_array_current,
+        ParamKind::Array,
+        gsu_array,
+        a,
+        *mut *mut c_char
+    );
+    current_gsu_accessors!(
+        hash_gsu,
+        get_hash_table,
+        set_hash_table_current,
+        ParamKind::Hash,
+        gsu_hash,
+        h,
+        *mut hashtable
+    );
 
     /// Assign the current scalar value without changing this parameter's type.
     ///
@@ -1045,51 +989,61 @@ impl ParamRef {
     }
 
     #[inline]
-    pub unsafe fn get_integer_named(name: *mut c_char) -> Result<zlong, ParamError> {
+    fn ensure_name(name: *mut c_char) -> Result<*mut c_char, ParamError> {
         if name.is_null() {
-            return Err(ParamError::NullName);
+            Err(ParamError::NullName)
+        } else {
+            Ok(name)
         }
-        Ok(unsafe { getiparam(name) })
+    }
+
+    #[inline]
+    unsafe fn named_value<T>(
+        name: *mut c_char,
+        get: unsafe extern "C" fn(*mut c_char) -> T,
+    ) -> Result<T, ParamError> {
+        let name = Self::ensure_name(name)?;
+        Ok(unsafe { get(name) })
+    }
+
+    #[inline]
+    unsafe fn named_assignment<T>(
+        name: *mut c_char,
+        val: T,
+        set: unsafe extern "C" fn(*mut c_char, T) -> *mut param,
+    ) -> Result<Self, ParamError> {
+        let name = Self::ensure_name(name)?;
+        unsafe { Self::from_assignment(set(name, val)) }
+    }
+
+    #[inline]
+    pub unsafe fn get_integer_named(name: *mut c_char) -> Result<zlong, ParamError> {
+        unsafe { Self::named_value(name, getiparam) }
     }
 
     #[inline]
     pub unsafe fn get_number_named(name: *mut c_char) -> Result<mnumber, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        Ok(unsafe { getnparam(name) })
+        unsafe { Self::named_value(name, getnparam) }
     }
 
     #[inline]
     pub unsafe fn get_scalar_named(name: *mut c_char) -> Result<*mut c_char, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        Ok(unsafe { getsparam(name) })
+        unsafe { Self::named_value(name, getsparam) }
     }
 
     #[inline]
     pub unsafe fn get_array_named(name: *mut c_char) -> Result<*mut *mut c_char, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        Ok(unsafe { getaparam(name) })
+        unsafe { Self::named_value(name, getaparam) }
     }
 
     #[inline]
     pub unsafe fn get_hash_pairs_named(name: *mut c_char) -> Result<*mut *mut c_char, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        Ok(unsafe { gethparam(name) })
+        unsafe { Self::named_value(name, gethparam) }
     }
 
     #[inline]
     pub unsafe fn get_hash_keys_named(name: *mut c_char) -> Result<*mut *mut c_char, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        Ok(unsafe { gethkparam(name) })
+        unsafe { Self::named_value(name, gethkparam) }
     }
 
     #[inline]
@@ -1097,10 +1051,7 @@ impl ParamRef {
         name: *mut c_char,
         val: *mut c_char,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        unsafe { Self::from_assignment(setsparam(name, val)) }
+        unsafe { Self::named_assignment(name, val, setsparam) }
     }
 
     #[inline]
@@ -1109,18 +1060,13 @@ impl ParamRef {
         val: *mut c_char,
         flags: c_int,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
+        let name = Self::ensure_name(name)?;
         unsafe { Self::from_assignment(assignsparam(name, val, flags)) }
     }
 
     #[inline]
     pub unsafe fn set_integer_named(name: *mut c_char, val: zlong) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        unsafe { Self::from_assignment(setiparam(name, val)) }
+        unsafe { Self::named_assignment(name, val, setiparam) }
     }
 
     #[inline]
@@ -1129,9 +1075,7 @@ impl ParamRef {
         val: zlong,
         flags: c_int,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
+        let name = Self::ensure_name(name)?;
         unsafe { Self::from_assignment(assigniparam(name, val, flags)) }
     }
 
@@ -1140,18 +1084,12 @@ impl ParamRef {
         name: *mut c_char,
         val: zlong,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        unsafe { Self::from_assignment(setiparam_no_convert(name, val)) }
+        unsafe { Self::named_assignment(name, val, setiparam_no_convert) }
     }
 
     #[inline]
     pub unsafe fn set_number_named(name: *mut c_char, val: mnumber) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        unsafe { Self::from_assignment(setnparam(name, val)) }
+        unsafe { Self::named_assignment(name, val, setnparam) }
     }
 
     #[inline]
@@ -1164,10 +1102,7 @@ impl ParamRef {
         name: *mut c_char,
         val: *mut *mut c_char,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        unsafe { Self::from_assignment(setaparam(name, val)) }
+        unsafe { Self::named_assignment(name, val, setaparam) }
     }
 
     #[inline]
@@ -1176,9 +1111,7 @@ impl ParamRef {
         val: *mut *mut c_char,
         flags: c_int,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
+        let name = Self::ensure_name(name)?;
         unsafe { Self::from_assignment(assignaparam(name, val, flags)) }
     }
 
@@ -1187,10 +1120,7 @@ impl ParamRef {
         name: *mut c_char,
         val: *mut *mut c_char,
     ) -> Result<Self, ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
-        unsafe { Self::from_assignment(sethparam(name, val)) }
+        unsafe { Self::named_assignment(name, val, sethparam) }
     }
 
     /// Reset a named parameter after looking it up directly.
@@ -1199,9 +1129,7 @@ impl ParamRef {
     /// pointer outside the invalidated `Param` node.
     #[inline]
     pub unsafe fn reset_named(name: *mut c_char, kind: ParamKind) -> Result<(), ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
+        let name = Self::ensure_name(name)?;
         let pm = unsafe { Self::lookup_direct(name, true) }.ok_or(ParamError::NotFound)?;
         unsafe { pm.reset_type(kind) }
     }
@@ -1211,9 +1139,7 @@ impl ParamRef {
     /// This function mirrors the C helper, which returns no status.
     #[inline]
     pub unsafe fn unset_named(name: *mut c_char) -> Result<(), ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
+        let name = Self::ensure_name(name)?;
         unsafe { unsetparam(name) };
         Ok(())
     }
@@ -1222,9 +1148,7 @@ impl ParamRef {
     /// return from `unsetparam_pm()`.
     #[inline]
     pub unsafe fn unset_checked_named(name: *mut c_char) -> Result<(), ParamError> {
-        if name.is_null() {
-            return Err(ParamError::NullName);
-        }
+        let name = Self::ensure_name(name)?;
         let pm = unsafe { Self::lookup_direct(name, true) }.ok_or(ParamError::NotFound)?;
         unsafe { pm.unset() }
     }
