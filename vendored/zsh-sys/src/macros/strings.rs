@@ -1,7 +1,10 @@
 #[allow(unused_imports)]
 use super::*;
+use ::bytemuck::{TransparentWrapper, Zeroable};
 use crate::*;
 
+#[derive(Debug, TransparentWrapper, Zeroable, Copy, Clone, PartialEq, Eq, Hash)]
+#[repr(transparent)]
 pub struct MetaString {
     pub ptr: *mut c_char,
 }

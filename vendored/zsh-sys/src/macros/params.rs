@@ -1,31 +1,55 @@
 #[allow(unused_imports)]
 use super::*;
 use core::ptr::NonNull;
-use {super::strings::MetaString, ::bytemuck::TransparentWrapper};
+use {super::strings::MetaString, ::bytemuck::TransparentWrapper, ::core::mem::ManuallyDrop};
 use {crate::*, ::core::fmt::Display};
 
-pub trait GsuTable {
+/// A valid member of the GSU union. Useful if your module adds a new variable type
+/// # Safety
+/// Caller asserts zsh parameters can take this as a valid GSU
+pub unsafe trait GsuTable {
     type Item;
-    fn get(&mut self, p: *mut param) -> Self::Item;
-    fn set(&mut self, p: *mut param, val: Self::Item);
-    fn unset(&mut self, p: *mut param, idx: c_int);
+    /// a bitor "any-of" bitflag union
+    const PM_TYPEFLAG_UNION: c_int;
+    fn get(&self, p: *mut param) -> Option<Self::Item>;
+    fn set(&self, p: *mut param, val: Self::Item);
+    fn unset(&self, p: *mut param, idx: c_int);
 }
 macro_rules! gsutable {
-    ($this:ty, $ty:ty) => {
-        impl GsuTable for $this {
-            type Item = $ty;
-            fn get(&mut self, p: *mut param) -> Self::Item {
-                let Some(f) = self.getfn else {
-                    return Default::default();
-                };
-                unsafe { f(p) }
+    (%nn $this:ty, $ty:ty, $flag:expr) => {
+        unsafe impl GsuTable for $this {
+            type Item = NonNull<$ty>;
+            const PM_TYPEFLAG_UNION: c_int = $flag;
+            fn get(&self, p: *mut param) -> Option<Self::Item> {
+                let f = self.getfn?;
+                NonNull::new(unsafe { f(p) })
             }
-            fn set(&mut self, p: *mut param, val: Self::Item) {
+            fn set(&self, p: *mut param, val: Self::Item) {
+                if let Some(f) = self.setfn {
+                    unsafe { f(p, val.as_ptr()) }
+                }
+            }
+            fn unset(&self, p: *mut param, idx: c_int) {
+                if let Some(f) = self.unsetfn {
+                    unsafe { f(p, idx) }
+                }
+            }
+        }
+    };
+    (%val $this:ty, $ty:ty, $flag:expr) => {
+        unsafe impl GsuTable for $this {
+            type Item = $ty;
+            const PM_TYPEFLAG_UNION: c_int = $flag;
+            fn get(&self, p: *mut param) -> Option<Self::Item> {
+                let f = self.getfn?;
+                Some(unsafe { f(p) })
+            }
+            fn set(&self, p: *mut param, val: Self::Item) {
                 if let Some(f) = self.setfn {
                     unsafe { f(p, val) }
                 }
             }
-            fn unset(&mut self, p: *mut param, idx: c_int) {
+            fn unset(&self, p: *mut param, idx: c_int) {
                 if let Some(f) = self.unsetfn {
                     unsafe { f(p, idx) }
                 }
@@ -33,18 +57,47 @@ macro_rules! gsutable {
         }
     };
 }
-gsutable!(gsu_array, *mut *mut c_char);
-gsutable!(gsu_float, f64);
-gsutable!(gsu_hash, *mut hashtable);
-gsutable!(gsu_integer, zlong);
-gsutable!(gsu_scalar, *mut c_char);
-impl GsuTable for c_void {
-    type Item = ();
-    fn get(&mut self, _p: *mut param) -> Self::Item {}
-    fn set(&mut self, _p: *mut param, _val: Self::Item) {}
-    fn unset(&mut self, _p: *mut param, _idx: c_int) {}
-}
+gsutable!(%nn gsu_array, *mut c_char, PM_ARRAY);
+gsutable!(%val gsu_float, f64, PM_EFLOAT | PM_FFLOAT);
+gsutable!(%nn gsu_hash, hashtable, PM_HASHED);
+gsutable!(%val gsu_integer, zlong, PM_INTEGER);
+gsutable!(%nn gsu_scalar, c_char, PM_SCALAR);
 
+// SAFETY: None lmao, I'm just doing this so our APIs don't suck
+unsafe impl GsuTable for c_void {
+    type Item = ();
+    const PM_TYPEFLAG_UNION: c_int = PM_TYPE_MASK;
+    fn get(&self, _p: *mut param) -> Option<Self::Item> {
+        Some(())
+    }
+    fn set(&self, _p: *mut param, _val: Self::Item) {}
+    fn unset(&self, _p: *mut param, _idx: c_int) {}
+}
+impl param__bindgen_ty_2 {
+    pub const fn is_null(&self) -> bool {
+        // SAFETY: Every single field of this union is a pointer type
+        ManuallyDrop::into_inner(unsafe { self.s }).is_null()
+    }
+    /// Get the field of the union that corresponds to the table type
+    #[inline(always)]
+    pub const fn get_table_for_type<G: GsuTable>(&self) -> *const G {
+        // Always use const-eval branches here so it monomorphizes into literally nothing
+        // SAFETY: Validity guaranteed by the trait implementors
+        if G::PM_TYPEFLAG_UNION == gsu_array::PM_TYPEFLAG_UNION {
+            ManuallyDrop::into_inner(unsafe { self.a }).cast()
+        } else if G::PM_TYPEFLAG_UNION == gsu_float::PM_TYPEFLAG_UNION {
+            ManuallyDrop::into_inner(unsafe { self.f }).cast()
+        } else if G::PM_TYPEFLAG_UNION == gsu_hash::PM_TYPEFLAG_UNION {
+            ManuallyDrop::into_inner(unsafe { self.h }).cast()
+        } else if G::PM_TYPEFLAG_UNION == gsu_integer::PM_TYPEFLAG_UNION {
+            ManuallyDrop::into_inner(unsafe { self.i }).cast()
+        } else if G::PM_TYPEFLAG_UNION == gsu_scalar::PM_TYPEFLAG_UNION {
+            ManuallyDrop::into_inner(unsafe { self.s }).cast()
+        } else {
+            null()
+        }
+    }
+}
 impl paramdef {
     #[inline(always)]
     pub const fn PM_TYPE(&self) -> c_int {
@@ -152,14 +205,14 @@ impl paramdef {
     }
 }
 
+const PM_TYPE_MASK: c_int =
+    PM_SCALAR | PM_INTEGER | PM_EFLOAT | PM_FFLOAT | PM_ARRAY | PM_HASHED | PM_NAMEREF;
+
 /// Extract the parameter type from flags.
 /// Equivalent to `#define PM_TYPE(X) (X & (PM_SCALAR | PM_INTEGER | PM_EFLOAT | PM_FFLOAT | PM_ARRAY | PM_HASHED | PM_NAMEREF))`
 #[inline]
 pub const fn PM_TYPE(flags: c_int) -> c_int {
-    const TYPE_MASK: c_int =
-        PM_SCALAR | PM_INTEGER | PM_EFLOAT | PM_FFLOAT | PM_ARRAY | PM_HASHED | PM_NAMEREF;
-
-    flags & TYPE_MASK
+    flags & PM_TYPE_MASK
 }
 impl param {
     /// Create a parameter, so that it can be assigned to.
@@ -170,9 +223,9 @@ impl param {
     /// provided it is unset and not special.
     ///
     /// If the parameter can't be created because it already exists, the PM_UNSET flag is cleared.
-    pub unsafe fn new(name: *mut c_char, flags: c_int) -> Option<&'static mut Self> {
+    pub unsafe fn new(name: *mut c_char, flags: c_int) -> Option<NonNull<Self>> {
         let param = unsafe { createparam(name, flags) };
-        unsafe { param.as_mut() }
+        NonNull::new(param)
     }
     #[inline(always)]
     const fn flags_contains(&self, flag: c_int) -> bool {
@@ -183,30 +236,9 @@ impl param {
     pub const fn PM_TYPE(&self) -> c_int {
         PM_TYPE(self.node.flags)
     }
-    /// Is this a scalar (string) parameter?
-    #[inline]
-    pub const fn is_scalar(&self) -> bool {
-        self.PM_TYPE() == PM_SCALAR
-    }
-    /// Is this an array parameter?
-    #[inline]
-    pub const fn is_array(&self) -> bool {
-        self.PM_TYPE() == PM_ARRAY
-    }
-    /// Is this an integer parameter?
-    #[inline]
-    pub const fn is_integer(&self) -> bool {
-        self.PM_TYPE() == PM_INTEGER
-    }
-    /// Is this a float parameter?
-    #[inline]
-    pub const fn is_float(&self) -> bool {
-        self.PM_TYPE() == PM_EFLOAT || self.PM_TYPE() == PM_FFLOAT
-    }
-    /// Is this a hashed (association) parameter?
-    #[inline]
-    pub const fn is_hashed(&self) -> bool {
-        self.PM_TYPE() == PM_HASHED
+    /// Returns `true` if the inner type equals the desired table type
+    pub const fn has_type<G: GsuTable>(&self) -> bool {
+        self.PM_TYPE() == G::PM_TYPEFLAG_UNION
     }
     /// Is this a nameref parameter?
     #[inline]
@@ -265,202 +297,65 @@ impl param {
     pub unsafe fn reset(&mut self, flags: c_int) -> c_int {
         unsafe { resetparam(&raw mut *self, flags) }
     }
-    /// Get the string value of this parameter.
-    /// # Safety
-    /// Caller must ensure this is a scalar parameter.
-    #[inline]
-    pub unsafe fn get_scalar(&self) -> *mut c_char {
-        debug_assert!(self.is_scalar());
 
-        unsafe {
-            // SAFETY: Caller guarantees scalar type
-            // gsu.s is ManuallyDrop<*const gsu_scalar>, need to dereference first
-            // let sfn = (**self.gsu.s).get(p);
-            let gsu_ptr = *self.gsu.s;
-            if gsu_ptr.is_null() {
-                return null_mut();
-            }
-            if let Some(f) = (*gsu_ptr).getfn {
-                // Get raw pointer from reference
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param)
-            } else {
-                null_mut()
-            }
-        }
-    }
-    /// Set the string value of this parameter.
+    /// Deref the inner GSU (As long as it is one of the common types!).
+    /// Returns `None` if it is unable to deref
+    ///
     /// # Safety
-    /// Caller must ensure this is a scalar parameter and value is valid.
-    #[inline]
-    pub unsafe fn set_scalar(&mut self, val: *mut c_char) {
-        debug_assert!(self.is_scalar());
+    /// Caller asserts the ptr is not dangling
+    #[inline(always)]
+    const unsafe fn deref_standard_gsu<G: GsuTable>(&self) -> Option<&G> {
+        // Common sense: The derefs below quite literally cannot be valid if we
+        // aren't the correct type!
+        if !self.has_type::<G>() {
+            return None;
+        }
 
-        unsafe {
-            // SAFETY: Caller guarantees scalar type and valid value
-            let gsu_ptr = *self.gsu.s;
-            if gsu_ptr.is_null() {
-                return;
-            }
-            if let Some(f) = (*gsu_ptr).setfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param, val)
-            }
+        let nnp: *const G = self.gsu.get_table_for_type();
+        if nnp.is_null() {
+            return None;
         }
+        // I just return a ref here foy my own convenience more than anything
+        // SAFETY: We assert the requested table kind is valid, and it is checked at
+        // runtime by `get_table_for_type`
+        unsafe { nnp.as_ref() }
     }
-    /// Get the integer value of this parameter.
+    /// inner GSU table get
     /// # Safety
-    /// Caller must ensure this is an integer parameter.
-    #[inline]
-    pub unsafe fn get_int(&self) -> zlong {
-        debug_assert!(self.is_integer());
-        unsafe {
-            // SAFETY: Caller guarantees integer type
-            let gsu_ptr = *self.gsu.i;
-            if gsu_ptr.is_null() {
-                return 0;
-            }
-            if let Some(f) = (*gsu_ptr).getfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param)
-            } else {
-                0
-            }
-        }
+    /// This memory is managed by zsh internally, do not free it.
+    /// Caller asserts this struct is pinned and they called this with the right type
+    pub unsafe fn standard_gsu_get<G: GsuTable>(&mut self) -> Option<G::Item> {
+        let selfptr = &raw mut *self;
+        unsafe { self.deref_standard_gsu::<G>() }?.get(selfptr)
     }
-    /// Set the integer value of this parameter.
+    /// inner GSU table set
     /// # Safety
-    /// Caller must ensure this is an integer parameter.
-    #[inline]
-    pub unsafe fn set_int(&mut self, val: zlong) {
-        debug_assert!(self.is_integer());
-        unsafe {
-            // SAFETY: Caller guarantees integer type
-            let gsu_ptr = *self.gsu.i;
-            if gsu_ptr.is_null() {
-                return;
+    /// This memory is managed by zsh internally, do not free it.
+    /// Caller asserts this struct is pinned and they called this with the right type
+    pub unsafe fn standard_gsu_set<G: GsuTable>(&mut self, val: G::Item) -> Result<(), G::Item> {
+        let selfptr = &raw mut *self;
+        let ptab = unsafe { self.deref_standard_gsu::<G>() };
+
+        match ptab {
+            Some(g) => {
+                g.set(selfptr, val);
+                Ok(())
             }
-            if let Some(f) = (*gsu_ptr).setfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param, val)
-            }
+            None => Err(val),
         }
     }
-    /// Get the float value of this parameter.
+    /// inner GSU table unset. This is the proper way to free vars.
     /// # Safety
-    /// Caller must ensure this is a float parameter.
-    #[inline]
-    pub unsafe fn get_float(&self) -> f64 {
-        debug_assert!(self.is_float());
-        unsafe {
-            // SAFETY: Caller guarantees float type
-            let gsu_ptr = *self.gsu.f;
-            if gsu_ptr.is_null() {
-                return 0.0;
-            }
-            if let Some(f) = (*gsu_ptr).getfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param)
-            } else {
-                0.0
-            }
-        }
+    /// This memory is managed by zsh internally, do not free it.
+    /// Caller asserts this struct is pinned and they called this with the right type
+    pub unsafe fn standard_gsu_unset<G: GsuTable>(&mut self, idx: c_int) -> Result<(), c_int> {
+        let selfptr = &raw mut *self;
+        let ptab = unsafe { self.deref_standard_gsu::<G>() }.ok_or(idx)?;
+        ptab.unset(selfptr, idx);
+        Ok(())
     }
-    /// Set the float value of this parameter.
-    /// # Safety
-    /// Caller must ensure this is a float parameter.
-    #[inline]
-    pub unsafe fn set_float(&mut self, val: f64) {
-        debug_assert!(self.is_float());
-        unsafe {
-            // SAFETY: Caller guarantees float type
-            let gsu_ptr = *self.gsu.f;
-            if gsu_ptr.is_null() {
-                return;
-            }
-            if let Some(f) = (*gsu_ptr).setfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param, val)
-            }
-        }
-    }
-    /// Get the array value of this parameter.
-    /// # Safety
-    /// Caller must ensure this is an array parameter.
-    #[inline]
-    pub unsafe fn get_arr(&self) -> *mut *mut c_char {
-        debug_assert!(self.is_array());
-        unsafe {
-            // SAFETY: Caller guarantees array type
-            let gsu_ptr = *self.gsu.a;
-            if gsu_ptr.is_null() {
-                return null_mut();
-            }
-            if let Some(f) = (*gsu_ptr).getfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param)
-            } else {
-                null_mut()
-            }
-        }
-    }
-    /// Set the array value of this parameter.
-    /// # Safety
-    /// Caller must ensure this is an array parameter.
-    #[inline]
-    pub unsafe fn set_arr(&mut self, val: *mut *mut c_char) {
-        debug_assert!(self.is_array());
-        unsafe {
-            // SAFETY: Caller guarantees array type
-            let gsu_ptr = *self.gsu.a;
-            if gsu_ptr.is_null() {
-                return;
-            }
-            if let Some(f) = (*gsu_ptr).setfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param, val)
-            }
-        }
-    }
-    /// Get the hash table value of this parameter.
-    /// # Safety
-    /// Caller must ensure this is a hashed (association) parameter.
-    #[inline]
-    pub unsafe fn get_hash(&self) -> *mut hashtable {
-        debug_assert!(self.is_hashed());
-        unsafe {
-            // SAFETY: Caller guarantees hashed type
-            let gsu_ptr = *self.gsu.h;
-            if gsu_ptr.is_null() {
-                return null_mut();
-            }
-            if let Some(f) = (*gsu_ptr).getfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param)
-            } else {
-                null_mut()
-            }
-        }
-    }
-    /// Set the hash table value of this parameter.
-    /// # Safety
-    /// Caller must ensure this is a hashed (association) parameter.
-    #[inline]
-    pub unsafe fn set_hash(&mut self, val: *mut hashtable) {
-        debug_assert!(self.is_hashed());
-        unsafe {
-            // SAFETY: Caller guarantees hashed type
-            let gsu_ptr = *self.gsu.h;
-            if gsu_ptr.is_null() {
-                return;
-            }
-            if let Some(f) = (*gsu_ptr).setfn {
-                let this_ptr: *const param = self;
-                f(this_ptr as *mut param, val)
-            }
-        }
-    }
-    /// Get the parameter name. This may or may not be a zstr or zhstr
+
+    /// Get the parameter name. This can be freed by calling `zsfree` iirc?
     #[inline]
     pub const fn name(&self) -> *mut c_char {
         self.node.nam
@@ -478,11 +373,6 @@ impl param {
 }
 
 impl value {
-    /// Get the parameter associated with this value.
-    #[inline]
-    pub const fn pm(&self) -> *mut param {
-        self.pm
-    }
     /// Is this an inverse subscript?
     #[inline]
     pub const fn is_inverse(&self) -> bool {
@@ -575,12 +465,24 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
-    pub const fn str(self) -> &'static str {
+    #[inline]
+    pub const fn message(self) -> &'static str {
         match self {
-            Self::Other(..) => "Other",
-            _ => todo!(),
+            Self::Scalar => "scalar parameter",
+            Self::Array => "array parameter",
+            Self::Integer => "integer parameter",
+            Self::Float => "float parameter",
+            Self::Hash => "hash parameter",
+            Self::Nameref => "nameref parameter",
+            Self::Other(..) => "unknown parameter kind",
         }
     }
+
+    #[inline]
+    pub const fn str(self) -> &'static str {
+        self.message()
+    }
+
     #[inline]
     pub const fn from_flags(flags: c_int) -> Self {
         match PM_TYPE(flags) {
@@ -637,12 +539,27 @@ pub enum ParamError {
     MissingUnset,
 }
 impl ParamError {
-    pub const fn str(self) -> &'static str {
+    #[inline]
+    pub const fn message(self) -> &'static str {
         match self {
-            Self::TypeMismatch { .. } => "Type mismatch",
-            Self::BadKind => "Bad Kind",
-            _ => todo!(),
+            Self::NullName => "parameter name is null",
+            Self::NullParam => "parameter pointer is null",
+            Self::NotFound => "parameter was not found",
+            Self::Hidden => "parameter is hidden by another visible parameter",
+            Self::ReadOnly => "parameter is read-only",
+            Self::ZshRejected => "zsh rejected the parameter operation",
+            Self::BadKind => "parameter kind cannot be used for this operation",
+            Self::TypeMismatch { .. } => "parameter type mismatch",
+            Self::NullGsu => "parameter GSU table is null",
+            Self::MissingGet => "parameter GSU table has no get function",
+            Self::MissingSet => "parameter GSU table has no set function",
+            Self::MissingUnset => "parameter GSU table has no unset function",
         }
+    }
+
+    #[inline]
+    pub const fn str(self) -> &'static str {
+        self.message()
     }
 }
 impl Display for ParamError {
@@ -710,19 +627,13 @@ impl ParamRef {
     }
 
     /// Look up a visible parameter through the current `paramtab`.
+    /// Avoids autoloading if `direct == true`.
     ///
+    /// # Regular lookup
     /// This uses zsh's table `getnode` hook, so it follows the same visible
     /// lookup rules as C code using `paramtab->getnode(paramtab, name)`.
     ///
-    /// # Safety
-    /// `name` must be a valid nul-terminated zsh string.
-    #[inline]
-    pub unsafe fn lookup(name: *const c_char) -> Option<Self> {
-        unsafe { Self::lookup_in(paramtab, name, false) }
-    }
-
-    /// Look up a parameter without autoloading when possible.
-    ///
+    /// # Direct lookup
     /// This mirrors zsh's common `gethashnode2(paramtab, name)` direct-table
     /// access when `paramtab == realparamtab`, and otherwise falls back to the
     /// table's ordinary `getnode` hook.
@@ -730,23 +641,28 @@ impl ParamRef {
     /// # Safety
     /// `name` must be a valid nul-terminated zsh string.
     #[inline]
-    pub unsafe fn lookup_direct(name: *const c_char) -> Option<Self> {
-        unsafe { Self::lookup_in(paramtab, name, true) }
+    pub unsafe fn lookup_direct(name: *const c_char, direct: bool) -> Option<Self> {
+        let pt = NonNull::new(unsafe { paramtab })?;
+        unsafe { Self::lookup_in(pt, name, direct) }
     }
 
-    unsafe fn lookup_in(tab: *mut hashtable, name: *const c_char, direct: bool) -> Option<Self> {
-        if tab.is_null() || name.is_null() {
+    unsafe fn lookup_in(
+        tab: NonNull<hashtable>,
+        name: *const c_char,
+        direct: bool,
+    ) -> Option<Self> {
+        if name.is_null() {
             return None;
         }
 
-        let node = if direct && tab == unsafe { realparamtab } {
-            unsafe { gethashnode2(tab, name) }
+        let node = if direct && tab.addr().get() == unsafe { realparamtab }.addr() {
+            unsafe { gethashnode2(tab.as_ptr(), name) }
         } else if direct {
-            let get = unsafe { (*tab).getnode2.or((*tab).getnode) }?;
-            unsafe { get(tab, name) }
+            let get = unsafe { tab.as_ref().getnode2.or(tab.as_ref().getnode) }?;
+            unsafe { get(tab.as_ptr(), name) }
         } else {
-            let get = unsafe { (*tab).getnode }?;
-            unsafe { get(tab, name) }
+            let get = unsafe { tab.as_ref().getnode }?;
+            unsafe { get(tab.as_ptr(), name) }
         };
 
         unsafe { Self::from_raw(node.cast()) }
@@ -768,37 +684,37 @@ impl ParamRef {
 
     #[inline]
     pub unsafe fn name(&self) -> *mut c_char {
-        unsafe { self.as_param().name() }
+        unsafe { self.as_param() }.name()
     }
 
     #[inline]
     pub unsafe fn flags(&self) -> c_int {
-        unsafe { self.as_param().flags() }
+        unsafe { self.as_param() }.flags()
     }
 
     #[inline]
     pub unsafe fn kind(&self) -> ParamKind {
-        ParamKind::from_flags(unsafe { self.flags() })
+        ParamKind::from_flags(unsafe { self.as_param() }.flags())
     }
 
     #[inline]
     pub unsafe fn is_unset(&self) -> bool {
-        unsafe { self.as_param().is_unset() }
+        unsafe { self.as_param() }.is_unset()
     }
 
     #[inline]
     pub unsafe fn is_readonly(&self) -> bool {
-        unsafe { self.as_param().is_readonly() }
+        unsafe { self.as_param() }.is_readonly()
     }
 
     #[inline]
     pub unsafe fn is_special(&self) -> bool {
-        unsafe { self.as_param().is_special() }
+        unsafe { self.as_param() }.is_special()
     }
 
     #[inline]
     pub unsafe fn is_removable(&self) -> bool {
-        unsafe { self.as_param().is_removable() }
+        unsafe { self.as_param() }.is_removable()
     }
 
     #[inline]
@@ -1078,7 +994,7 @@ impl ParamRef {
             return Err(ParamError::NullName);
         }
 
-        if let Some(visible) = unsafe { Self::lookup_direct(name) }
+        if let Some(visible) = unsafe { Self::lookup_direct(name, true) }
             && visible.as_ptr() != self.as_ptr()
         {
             return Err(ParamError::Hidden);
@@ -1285,7 +1201,7 @@ impl ParamRef {
         if name.is_null() {
             return Err(ParamError::NullName);
         }
-        let pm = unsafe { Self::lookup_direct(name) }.ok_or(ParamError::NotFound)?;
+        let pm = unsafe { Self::lookup_direct(name, true) }.ok_or(ParamError::NotFound)?;
         unsafe { pm.reset_type(kind) }
     }
 
@@ -1308,7 +1224,7 @@ impl ParamRef {
         if name.is_null() {
             return Err(ParamError::NullName);
         }
-        let pm = unsafe { Self::lookup_direct(name) }.ok_or(ParamError::NotFound)?;
+        let pm = unsafe { Self::lookup_direct(name, true) }.ok_or(ParamError::NotFound)?;
         unsafe { pm.unset() }
     }
 }

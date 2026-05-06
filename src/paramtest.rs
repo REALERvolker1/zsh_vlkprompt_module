@@ -144,7 +144,7 @@ pub unsafe fn run_parameter_tests() -> i32 {
 
     expect(
         "missing lookup returns None",
-        unsafe { ParamRef::lookup_direct(MISSING).is_none() },
+        unsafe { ParamRef::lookup_direct(MISSING, true).is_none() },
         &mut failures,
         "unexpected parameter exists",
     );
@@ -401,7 +401,7 @@ pub unsafe fn run_parameter_tests() -> i32 {
         }
     }
 
-    if let Some(excount) = unsafe { ParamRef::lookup_direct(EXCOUNT) } {
+    if let Some(excount) = unsafe { ParamRef::lookup_direct(EXCOUNT, true) } {
         let kind = unsafe { excount.kind() };
         expect(
             "EXCOUNT special parameter is integer",
@@ -417,12 +417,12 @@ pub unsafe fn run_parameter_tests() -> i32 {
         fail("EXCOUNT lookup", &mut failures, "not found");
     }
 
-    if let Some(pm) = unsafe { ParamRef::lookup_direct(SCALAR) } {
+    if let Some(pm) = unsafe { ParamRef::lookup_direct(SCALAR, true) } {
         match unsafe { pm.reset_type(ParamKind::Integer) } {
             Ok(()) => pass("reset scalar to integer"),
             Err(err) => fail("reset scalar to integer", &mut failures, show_error(err)),
         }
-        match unsafe { ParamRef::lookup_direct(SCALAR) } {
+        match unsafe { ParamRef::lookup_direct(SCALAR, true) } {
             Some(pm) => expect(
                 "reset kind observed",
                 unsafe { pm.kind() } == ParamKind::Integer,
@@ -452,7 +452,7 @@ pub unsafe fn run_parameter_tests() -> i32 {
 
     expect(
         "cleanup removed scalar",
-        unsafe { ParamRef::lookup_direct(SCALAR).is_none() },
+        unsafe { ParamRef::lookup_direct(SCALAR, true).is_none() },
         &mut failures,
         "still present",
     );
